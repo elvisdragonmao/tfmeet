@@ -25,20 +25,31 @@ export function bestPerAthlete(records, lower = true) {
 	}
 	return [...map.values()];
 }
+export function uniqueStarts(records) {
+	const seen = new Set();
+	return records.filter(r => {
+		const key = JSON.stringify([r.meetId, r.item, r.date || r.year, r.heat || "", r.bib || r.athleteId, r.value === null ? r.performance : r.value, r.wind]);
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+}
 export function comparePool(records, filters) {
 	const { gender, group, from, to, age, wind, round, team } = filters;
-	return records.filter(
-		r =>
-			r.value !== null &&
-			r.kind === "individual" &&
-			(!gender || r.gender === gender) &&
-			(!group || r.group === group) &&
-			r.year >= from &&
-			r.year <= to &&
-			(!age || r.age === Number(age)) &&
-			(!team || r.team.includes(team)) &&
-			(!round || r.round === round) &&
-			(wind !== "legal" || (r.wind !== null && r.wind <= 2))
+	return uniqueStarts(
+		records.filter(
+			r =>
+				r.value !== null &&
+				r.kind === "individual" &&
+				(!gender || r.gender === gender) &&
+				(!group || r.group === group) &&
+				r.year >= from &&
+				r.year <= to &&
+				(!age || r.age === Number(age)) &&
+				(!team || r.team.includes(team)) &&
+				(!round || r.round === round) &&
+				(wind !== "legal" || (r.wind !== null && r.wind <= 2))
+		)
 	);
 }
 // Rank uses competition ranking: tied performances have the same top percentage.

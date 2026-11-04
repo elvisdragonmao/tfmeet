@@ -11,3 +11,5 @@ export function groupStats(
 	lower?: boolean
 ): { key: number; n: number; median: number | null; top10: number | null; top25: number | null; top75: number | null; best: number | null }[];
 export function parseInput(text: string, unit?: string): number | null;
+
+export function uniqueStarts(records: Result[]): Result[];

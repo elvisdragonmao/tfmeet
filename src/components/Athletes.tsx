@@ -1,7 +1,7 @@
 import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { MagnifyingGlassIcon, ArrowRightIcon, CheckIcon } from "@phosphor-icons/react";
 import { loadAthletes, loadAthlete } from "../data";
-import { bestPerAthlete, formatResult, groupStats } from "../analysis.mjs";
+import { bestPerAthlete, formatResult, groupStats, uniqueStarts } from "../analysis.mjs";
 import type { Athlete, Manifest, Result } from "../types";
 import { Empty, ErrorNotice, genderName, Loading, number, ResultsTable, Stat, unitName } from "./Shared";
 const Chart = lazy(() => import("./Chart"));
@@ -64,7 +64,7 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 	const available = [...new Set(records.filter(r => r.kind !== "relay").map(eventLabel))].sort();
 	const currentEvent = available.includes(event) ? event : available.includes("100公尺") ? "100公尺" : available[0];
 	const filtered = useMemo(
-		() => records.filter(r => eventLabel(r) === currentEvent && r.kind !== "relay").sort((a, b) => (a.date || String(a.year)).localeCompare(b.date || String(b.year))),
+		() => uniqueStarts(records.filter(r => eventLabel(r) === currentEvent && r.kind !== "relay")).sort((a, b) => (a.date || String(a.year)).localeCompare(b.date || String(b.year))),
 		[records, currentEvent]
 	);
 	const info = manifest.events.find(e => e.name === filtered[0]?.event && e.gender === athlete?.gender);

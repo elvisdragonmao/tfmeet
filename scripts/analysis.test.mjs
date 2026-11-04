@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bestPerAthlete, comparePool, formatResult, groupStats, parseInput, quantile, standing, threshold } from "../src/analysis.mjs";
+import { bestPerAthlete, comparePool, formatResult, groupStats, parseInput, quantile, standing, threshold, uniqueStarts } from "../src/analysis.mjs";
 import { identity, registerIdentity, ambiguousIdentities } from "./identity.mjs";
 const r = (id, value, extra = {}) => ({ athleteId: id, name: id, gender: "M", team: "測試國中", kind: "individual", value, year: 2023, age: 14, group: "國中男子", wind: 1, round: "預賽", ...extra });
 test("one athlete carries one vote regardless of starts", () => {
@@ -78,4 +78,18 @@ test("field age thresholds and yearly best retain higher-is-better direction", (
 	assert.equal(stats[0].best, 7);
 	assert.equal(stats[0].median, 6.5);
 	assert.equal(stats[0].top10, 6.9);
+});
+
+test("duplicate bilingual source rows count once while separate starts remain", () => {
+	const a = r("runner", 12, { meetId: "m1", item: "105", heat: "1", bib: "736" });
+	const duplicate = { ...a, id: "translated-row", name: "Another display name", athleteId: "alias" };
+	assert.equal(uniqueStarts([a, duplicate]).length, 1);
+	assert.equal(
+		uniqueStarts([
+			{ ...a, value: null, performance: "DNS" },
+			{ ...a, value: null, performance: "DNF" }
+		]).length,
+		2
+	);
+	assert.equal(uniqueStarts([a, { ...a, meetId: "m2" }, { ...a, item: "205" }, { ...a, heat: "2" }]).length, 4);
 });
