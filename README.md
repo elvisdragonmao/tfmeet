@@ -1,6 +1,6 @@
 # 田徑成績室
 
-台灣歷史田徑成績查詢與分析。資料來源為[中華民國田徑協會歷史成績查詢](https://w3.athletics.org.tw/tfmeet/list_menu.php)，網站部署於 **https://tfmeet.emtech.cc**。
+台灣歷史田徑成績查詢與分析。資料來源為[中華民國田徑協會歷史成績查詢](https://w3.athletics.org.tw/tfmeet/list_menu.php)，網站部署於 [tfmeet.emtech.cc](https://tfmeet.emtech.cc/)。
 
 React、TypeScript、Vite、Tailwind CSS、daisyUI、Apache ECharts、Motion 與 `@phosphor-icons/react`。查詢狀態使用 React hooks；靜態檔案以 `fetch` 和 Promise cache 載入，無須 React Query、Zustand 或後端資料庫。
 
