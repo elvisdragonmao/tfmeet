@@ -82,7 +82,7 @@ pnpm run data:package    # 產生 .cache/tfmeet-data.tar.gz，供 Release／buil
 | `athletes/{prefix}.json.gz` | 依身分雜湊前兩碼分片的歷屆成績                         |
 | `archive.json.gz`           | 解壓後為所有賽事的 JSON 陣列，包含全部原始資料         |
 
-開發與擷取時同時保留未壓縮 JSON；正式 build 只發布壓縮檔與小型 manifest。網頁使用瀏覽器的 `DecompressionStream` 在本機解壓，資料分析不會傳送使用者輸入。程式碼公開授權不代表取得來源資料的授權；使用資料時請保留來源、擷取日期與原始賽事更正資訊。
+開發與擷取時同時保留未壓縮 JSON；正式 build 只發布壓縮檔與小型 manifest。網頁使用瀏覽器的 `DecompressionStream` 在本機解壓、計算統計與搜尋選手；分享網址會包含篩選條件與輸入成績。程式碼公開授權不代表取得來源資料的授權；使用資料時請保留來源、擷取日期與原始賽事更正資訊。
 
 ## 統計與身分判斷
 
