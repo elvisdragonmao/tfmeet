@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.cache/
+public/data/
+.playwright-cli/
+artifacts/
+*.tsbuildinfo
+.DS_Store
+.env*
+!.env.example

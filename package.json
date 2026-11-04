@@ -1,0 +1,46 @@
+{
+	"name": "tfmeet",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "node scripts/ensure-data.mjs && tsc -b && vite build",
+		"build:app": "tsc -b && vite build",
+		"check": "tsc -b",
+		"data:derive": "node scripts/derive.mjs",
+		"data:package": "node scripts/package-data.mjs",
+		"data:refresh": "node scripts/crawl.mjs --refresh && node scripts/reparse.mjs && node scripts/derive.mjs && node scripts/validate-data.mjs",
+		"data:update": "node scripts/crawl.mjs && node scripts/reparse.mjs && node scripts/derive.mjs && node scripts/validate-data.mjs",
+		"data:validate": "node scripts/validate-data.mjs",
+		"dev": "vite --host 127.0.0.1",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"preinstall": "npx only-allow pnpm",
+		"prepare": "sh -c 'if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then git config core.hooksPath .githooks; fi'",
+		"preview": "vite preview --host 127.0.0.1",
+		"test": "node --test scripts/*.test.mjs"
+	},
+	"dependencies": {
+		"@phosphor-icons/react": "^2.1.10",
+		"echarts": "^6.1.0",
+		"motion": "^14.9.0",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1"
+	},
+	"devDependencies": {
+		"@tailwindcss/vite": "^4.3.4",
+		"@types/node": "^26.6.6",
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"@vitejs/plugin-react": "^6.2.1",
+		"cheerio": "^1.2.0",
+		"daisyui": "^5.7.50",
+		"iconv-lite": "^0.7.3",
+		"prettier": "^3.9.10",
+		"prettier-plugin-organize-imports": "^4.3.0",
+		"prettier-plugin-packagejson": "^3.1.0",
+		"tailwindcss": "^4.3.4",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.5"
+	},
+	"packageManager": "pnpm@12.16.1+sha512.091d1dee7927575661b25dab3c2ae31cafc1c54d6b71ed6a6600cf0c1cb10434a447eae14015f1b23e2e6bedeed79df94a932e2164d2832280dce3fb32f656d1"
+}

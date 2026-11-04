@@ -1,0 +1,104 @@
+name: Update data and deploy
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Every month on the 2nd at 03:17 in Taiwan (1st, 19:17 UTC).
+    - cron: "17 19 1 * *"
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: Download every competition again
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  NODE_OPTIONS: --max-old-space-size=8192
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm run check
+      - name: Restore raw source cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .cache/html
+          key: tfmeet-source-v3-${{ github.run_id }}
+          restore-keys: tfmeet-source-v3-
+      - name: Download data snapshot or refresh from source
+        id: data
+        env:
+          REFRESH: ${{ github.event_name == 'schedule' || inputs.refresh == true }}
+        run: |
+          mkdir -p .cache public/data
+          if gh release download dataset --pattern tfmeet-data.tar.gz --dir .cache; then
+            tar -xzf .cache/tfmeet-data.tar.gz -C public/data
+            cp public/data/manifest.json .cache/previous-manifest.json
+          else
+            REFRESH=true
+          fi
+          if [ "$REFRESH" = true ]; then
+            pnpm run data:refresh
+            echo 'updated=true' >> "$GITHUB_OUTPUT"
+          fi
+          pnpm run data:validate
+      - name: Save source cache after refresh
+        if: steps.data.outputs.updated == 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: .cache/html
+          key: tfmeet-source-v3-${{ github.run_id }}
+      - name: Publish generated data snapshot outside Git history
+        if: steps.data.outputs.updated == 'true'
+        run: |
+          pnpm run data:package
+          if ! gh release view dataset >/dev/null 2>&1; then
+            gh release create dataset --target main --title '田徑成績資料快照' --notes 'Generated public competition data. JSON is not committed to the repository.'
+          fi
+          gh release upload dataset .cache/tfmeet-data.tar.gz --clobber
+      - run: pnpm run build
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+      - name: Retain crawl diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: crawl-report
+          path: |
+            public/data/manifest.json
+            public/data/crawl-progress.json
+          retention-days: 35
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
