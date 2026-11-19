@@ -289,9 +289,9 @@ export default function App() {
 														onChange={e => {
 															setEventName(e.target.value);
 															const next = choices.find(choice => choice.label === e.target.value);
-															if (next?.name !== chosen?.name) setGroup("");
-															if (next?.genders.length === 1 && next.genders[0] === "X") setGender("X");
-															else if (currentGender === "X") setGender(next?.genders.includes("X") ? "X" : next?.genders[0] || "M");
+															const nextGender = next && (next.genders.length === 1 || (currentGender === "X" && !next.genders.includes("X"))) ? next.genders[0] : currentGender;
+															if (next?.name !== chosen?.name || nextGender !== currentGender) setGroup("");
+															if (nextGender !== currentGender) setGender(nextGender);
 															setAge("");
 															setRound("");
 														}}
