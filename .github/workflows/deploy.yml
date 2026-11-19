@@ -62,6 +62,7 @@ jobs:
             pnpm run data:refresh
             echo 'updated=true' >> "$GITHUB_OUTPUT"
           fi
+          node scripts/ensure-data.mjs
           pnpm run data:validate
       - name: Save source cache after refresh
         if: steps.data.outputs.updated == 'true'

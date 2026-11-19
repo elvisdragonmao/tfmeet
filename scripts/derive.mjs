@@ -1,8 +1,9 @@
 import { mkdir, readFile, writeFile, readdir, rename, rm } from "node:fs/promises";
 import { createReadStream, createWriteStream } from "node:fs";
 import { createHash } from "node:crypto";
-import { createGzip, gzipSync } from "node:zlib";
+import { createGunzip, createGzip, gunzipSync, gzipSync } from "node:zlib";
 import { once } from "node:events";
+import { dataRulesVersion, normalizeEvent, normalizeGroup, inferSpecification } from "../src/events.mjs";
 import { identity, registerIdentity, ambiguousIdentities } from "./identity.mjs";
 const root = new URL("../public/data/", import.meta.url);
 await mkdir(new URL("events/", root), { recursive: true });
@@ -19,8 +20,10 @@ try {
 	if (progress.meets.length > manifest.meets.length) manifest = { ...manifest, updatedAt: progress.updatedAt, meets: progress.meets };
 } catch {}
 const registrations = new Map();
+const meetPath = id => new URL(`meets/${id}.json.gz`, root);
+const readMeet = async id => JSON.parse(gunzipSync(await readFile(meetPath(id))));
 for (const meet of manifest.meets) {
-	const d = JSON.parse(await readFile(new URL(`meets/${meet.id}.json`, root), "utf8"));
+	const d = await readMeet(meet.id);
 	for (const r of d.records) registerIdentity(registrations, r);
 }
 const ambiguous = ambiguousIdentities(registrations);
@@ -28,12 +31,14 @@ registrations.clear();
 const events = new Map(),
 	athletes = new Map(),
 	buckets = new Map();
+const eventLabels = new Map();
+const groupLabels = new Map();
 let count = 0,
 	withAge = 0;
 for (const meet of manifest.meets) {
 	let d;
 	try {
-		d = JSON.parse(await readFile(new URL(`meets/${meet.id}.json`, root), "utf8"));
+		d = await readMeet(meet.id);
 	} catch (e) {
 		throw new Error(`Missing meet ${meet.id}: ${e.message}`);
 	}
@@ -44,28 +49,20 @@ for (const meet of manifest.meets) {
 	meet.warnings = d.warnings || [];
 	for (const r of d.records) {
 		const ident = identity(r, ambiguous);
-		r.athleteId = ident.id;
-		const event = r.event
-			.split(/[；;]/)
-			.at(-1)
-			.replace(/\s+/g, "")
-			.replace(/\(取消\)/g, "")
-			.replace(/（取消）/g, "")
-			.replace(/(\d(?:\.\d+)?)m\)/g, "$1公尺)")
-			.replace(/(\d(?:\.\d+)?)公斤\)/g, "$1kg)")
-			.replace(/(\d(?:\.\d+)?)公克\)/g, "$1g)");
-		const timed = /^1/.test(new URL(r.source).searchParams.get("sub") || "") || (/公尺|公里|馬拉松|m跨欄|Meters|Marathon/i.test(event) && !/跳|擲/.test(event));
-		const eventKey = createHash("sha256")
-			.update(event + "|" + r.gender)
-			.digest("hex")
-			.slice(0, 16);
+		if (!eventLabels.has(r.event)) eventLabels.set(r.event, normalizeEvent(r.event));
+		const { family: event, unit, specification: stated } = eventLabels.get(r.event);
+		const groupKey = r.group + "|" + r.gender;
+		if (!groupLabels.has(groupKey)) groupLabels.set(groupKey, normalizeGroup(r.group, r.gender));
+		const group = groupLabels.get(groupKey);
+		const specification = stated ?? inferSpecification(event, group, r.gender, r.age);
+		const eventKey = event + "|" + r.gender;
 		if (!events.has(eventKey))
 			events.set(eventKey, {
-				id: eventKey,
+				id: createHash("sha256").update(eventKey).digest("hex").slice(0, 16),
 				name: event,
 				gender: r.gender,
-				unit: /全能/.test(event) ? "points" : timed ? "s" : "m",
-				lowerIsBetter: timed,
+				unit,
+				lowerIsBetter: unit === "s",
 				records: [],
 				sources: {}
 			});
@@ -73,13 +70,20 @@ for (const meet of manifest.meets) {
 		const sessionKey = `${r.meetId}:${r.item}:${r.heat || ""}`;
 		e.sources[sessionKey] = r.source;
 		const { fields, source, ...record } = r;
+		record.athleteId = ident.id;
 		record.event = event;
+		record.group = group;
 		record.name = ident.displayName;
+		record.kind = unit === "points" ? "combined" : /接力/.test(event) ? "relay" : r.kind;
+		if (specification !== null) {
+			record.specification = specification;
+			if (stated === null) record.specificationInferred = true;
+		}
 		if (record.name !== r.name) record.originalName = r.name;
 		e.records.push(record);
 		count++;
 		if (r.age !== null) withAge++;
-		if (r.kind === "relay") continue;
+		if (record.kind === "relay") continue;
 		if (!athletes.has(ident.id))
 			athletes.set(ident.id, {
 				id: ident.id,
@@ -107,8 +111,20 @@ for (const meet of manifest.meets) {
 	}
 }
 const eventIndex = [];
-for (const [id, e] of events) {
+for (const e of events.values()) {
+	const { id } = e;
 	e.records.sort((a, b) => a.year - b.year || (a.value ?? Infinity) - (b.value ?? Infinity));
+	const specifications = new Map();
+	let valid = 0;
+	for (const r of e.records) {
+		const individual = r.value !== null && r.kind === "individual";
+		if (individual) valid++;
+		if (r.specification === undefined) continue;
+		if (!specifications.has(r.specification)) specifications.set(r.specification, { size: r.specification, count: 0, valid: 0 });
+		const spec = specifications.get(r.specification);
+		spec.count++;
+		if (individual) spec.valid++;
+	}
 	await writeFile(new URL(`events/${id}.json`, root), JSON.stringify(e));
 	await writeFile(new URL(`events/${id}.json.gz`, root), gzipSync(JSON.stringify(e)));
 	eventIndex.push({
@@ -118,13 +134,15 @@ for (const [id, e] of events) {
 		unit: e.unit,
 		lowerIsBetter: e.lowerIsBetter,
 		count: e.records.length,
-		valid: e.records.filter(r => r.value !== null && r.kind === "individual").length,
+		valid,
+		specifications: [...specifications.values()].sort((a, b) => a.size - b.size),
 		years: [...new Set(e.records.map(r => r.year))].sort()
 	});
 }
+const eventIds = new Set(eventIndex.map(event => event.id));
 for (const file of await readdir(new URL("events/", root))) {
 	const id = file.replace(/\.json(?:\.gz)?$/, "");
-	if (!events.has(id)) await rm(new URL(`events/${file}`, root));
+	if (!eventIds.has(id)) await rm(new URL(`events/${file}`, root));
 }
 eventIndex.sort((a, b) => b.count - a.count);
 const athleteIndex = [...athletes.values()].map(a => ({ ...a, aliases: [...a.aliases], teams: [...a.teams].sort(), events: [...a.events].sort(), years: [...a.years].sort() }));
@@ -143,7 +161,7 @@ zip.pipe(out);
 zip.write("[");
 for (let i = 0; i < manifest.meets.length; i++) {
 	if (i) zip.write(",");
-	for await (const chunk of createReadStream(new URL(`meets/${manifest.meets[i].id}.json`, root))) {
+	for await (const chunk of createReadStream(meetPath(manifest.meets[i].id)).pipe(createGunzip())) {
 		if (!zip.write(chunk)) await once(zip, "drain");
 	}
 }
@@ -152,6 +170,7 @@ await once(out, "close");
 await rename(archiveTemp, new URL("archive.json.gz", root));
 manifest = {
 	...manifest,
+	dataRulesVersion,
 	derivedAt: new Date().toISOString(),
 	recordCount: count,
 	athleteCount: athletes.size,

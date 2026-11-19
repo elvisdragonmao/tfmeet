@@ -1,4 +1,4 @@
-import { readFile, stat, readdir } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { gunzipSync } from "node:zlib";
 const root = new URL("../public/data/", import.meta.url);
@@ -38,6 +38,30 @@ for (const meta of m.meets) {
 assert.equal(count, m.recordCount);
 const indexCount = m.events.reduce((n, e) => n + e.count, 0);
 assert.equal(indexCount, count);
+if (m.dataRulesVersion) {
+	for (const event of m.events) {
+		const data = JSON.parse(gunzipSync(await readFile(new URL(`events/${event.id}.json.gz`, root))));
+		assert.equal(data.name, event.name);
+		assert.equal(data.gender, event.gender);
+		assert.equal(data.records.length, event.count);
+		const sizes = new Map(event.specifications.map(spec => [spec.size, { count: 0, valid: 0 }]));
+		let valid = 0;
+		for (const r of data.records) {
+			assert.equal(r.event, event.name);
+			assert.equal(r.gender, event.gender);
+			const individual = r.kind === "individual" && r.value !== null;
+			if (individual) valid++;
+			if (r.specification !== undefined) {
+				const size = sizes.get(r.specification);
+				assert.ok(size, `Missing specification ${r.specification} in ${event.name}`);
+				size.count++;
+				if (individual) size.valid++;
+			}
+		}
+		assert.equal(valid, event.valid);
+		for (const { size, count, valid } of event.specifications) assert.deepEqual(sizes.get(size), { count, valid });
+	}
+}
 await stat(new URL("archive.json.gz", root));
 console.log(`Data verified: ${m.meets.length} competitions, ${sessions} source sessions, ${count} records; ${m.partial} competitions with disclosed gaps.`);
 

@@ -3,6 +3,7 @@ import { createWriteStream } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
+import { dataRulesVersion } from "../src/events.mjs";
 const run = (script, args = []) => {
 	const r = spawnSync(process.execPath, [script, ...args], { stdio: "inherit", env: { ...process.env, NODE_OPTIONS: process.env.NODE_OPTIONS || "--max-old-space-size=8192" } });
 	if (r.status !== 0) process.exit(r.status || 1);
@@ -28,7 +29,7 @@ try {
 	}
 }
 let manifest = JSON.parse(await readFile(new URL("../public/data/manifest.json", import.meta.url)));
-if (!manifest.events?.length) {
+if (!manifest.events?.length || manifest.dataRulesVersion !== dataRulesVersion) {
 	run("scripts/derive.mjs");
 	manifest = JSON.parse(await readFile(new URL("../public/data/manifest.json", import.meta.url)));
 }
