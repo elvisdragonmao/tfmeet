@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { calibratedCellKey, predictFormula, predictPerformance } from "../src/prediction.mjs";
+import { calibratedCellKey, futureSeasonHorizons, predictFormula, predictPerformance } from "../src/prediction.mjs";
 import { athletePredictionSeasons } from "../src/prediction-history.mjs";
 import { cleanEvent, longitudinalPairs, weightPairs } from "./prediction-data.mjs";
 import { calibratedRadius, splitOf, splitPairs } from "./prediction-fit.mjs";
@@ -207,4 +207,11 @@ test("individual adjustment consumes matching past seasons only", () => {
 	assert.equal(revised.applicability.historyMarksUsed, 2);
 	assert.notEqual(revised.estimate, baseline.estimate);
 	assert.deepEqual(attemptedLeak, revised);
+});
+test("future forecast horizons already elapsed are removed without extending the model's range", () => {
+	assert.deepEqual(futureSeasonHorizons(2026, 2026), [1, 2, 3]);
+	assert.deepEqual(futureSeasonHorizons(2025, 2026), [2, 3]);
+	assert.deepEqual(futureSeasonHorizons(2024, 2026), [3]);
+	assert.deepEqual(futureSeasonHorizons(2023, 2026), []);
+	assert.deepEqual(futureSeasonHorizons(2027, 2026), []);
 });

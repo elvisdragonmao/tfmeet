@@ -4,8 +4,14 @@ const massEvents = new Set(["鉛球", "鐵餅", "標槍", "鏈球"]);
 const ageBandStarts = [5, 13, 16, 19, 23, 30, 40, 50, 60, 70, 80, 90];
 
 export const predictionSchemaVersion = 1;
+export const maxForecastHorizon = 3;
 export const ageBand = age => ageBandStarts.findLast(start => start <= age);
 export const calibratedCellKey = (mode, event, gender, from, to, age, horizon) => [mode, event, gender, from ?? "", to ?? "", ageBand(age), horizon].join("|");
+
+export function futureSeasonHorizons(baseYear, currentYear) {
+	if (baseYear > currentYear) return [];
+	return Array.from({ length: maxForecastHorizon }, (_, i) => i + 1).filter(horizon => baseYear + horizon > currentYear);
+}
 
 export function curveValue(curve, age) {
 	const { knots, levels } = curve;
@@ -108,7 +114,7 @@ export function predictPerformance(artifact, input) {
 	const horizon = b - a;
 	const mode = from !== to ? (horizon ? "joint" : "weight") : "age";
 	if (mode === "age" && horizon === 0) return reject("no-change", "請指定未來年齡或不同的器材重量。");
-	if (horizon > 3) return reject("horizon", "回測最長跨度為三個當年年齡。");
+	if (horizon > maxForecastHorizon) return reject("horizon", "回測最長跨度為三個當年年齡。");
 	const key = calibratedCellKey(mode, event, input.gender, from, to, a, horizon);
 	const cell = artifact.models[key];
 	if (!cell || !cell.ages.includes(a)) return reject("insufficient-evidence", "此項目、性別、規格、當年年齡及跨度沒有通過獨立回測。");

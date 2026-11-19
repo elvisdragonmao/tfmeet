@@ -1,11 +1,10 @@
 import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { MagnifyingGlassIcon, ArrowRightIcon, CheckIcon } from "@phosphor-icons/react";
 import { loadAthletes, loadAthlete } from "../data";
-import { bestPerAthlete, canReviewAthletesTogether, formatResult, groupStats, uniqueStarts } from "../analysis.mjs";
+import { bestPerAthlete, canReviewAthletesTogether, formatResult, uniqueStarts } from "../analysis.mjs";
 import type { Athlete, Manifest, Result } from "../types";
 import { Empty, ErrorNotice, genderName, Loading, number, ResultsTable, Stat, unitName } from "./Shared";
-const Chart = lazy(() => import("./Chart"));
-const AthleteForecast = lazy(() => import("./AthleteForecast"));
+const AthletePerformanceChart = lazy(() => import("./AthletePerformanceChart"));
 const identityNotes: Record<string, string> = {
 	"verified-override": "已依公開資料核對身分與姓名。",
 	"verified-source-alias": "同一來源成績列有中英文姓名，並以出生年及單位核對後合併。",
@@ -24,7 +23,7 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [event, setEvent] = useState("");
-	const [axis, setAxis] = useState("year");
+	const [axis, setAxis] = useState<"year" | "age">("year");
 	useEffect(() => {
 		let live = true;
 		loadAthletes()
@@ -80,25 +79,7 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 	);
 	const info = manifest.events.find(e => e.name === filtered[0]?.event && e.gender === athlete?.gender);
 	const valid = filtered.filter(r => r.value !== null);
-	const stats = groupStats(valid, axis === "age" ? "age" : "year", info?.lowerIsBetter ?? true);
 	const best = bestPerAthlete(valid, info?.lowerIsBetter ?? true).sort((a, b) => ((info?.lowerIsBetter ?? true) ? a.value! - b.value! : b.value! - a.value!))[0];
-	const chart = {
-		grid: { left: 65, right: 28, top: 25, bottom: 45 },
-		xAxis: { type: "category", data: stats.map(s => `${s.key}${axis === "age" ? " 歲" : ""}`), axisLine: { show: false }, axisTick: { show: false } },
-		yAxis: { type: "value", scale: true, inverse: info?.lowerIsBetter, axisLabel: { formatter: (v: number) => formatResult(v, info?.unit) }, splitLine: { lineStyle: { color: "#edf0f5" } } },
-		tooltip: { trigger: "axis", valueFormatter: (v: unknown) => formatResult(Number(v), info?.unit) },
-		series: [
-			{
-				name: "年度最佳成績",
-				type: "line",
-				data: stats.map(s => s.best),
-				symbolSize: 9,
-				lineStyle: { width: 3 },
-				itemStyle: { borderColor: "#fff", borderWidth: 3 },
-				areaStyle: { color: "#edf2ff", opacity: 1 }
-			}
-		]
-	};
 	return (
 		<div className="athlete-layout">
 			<section className="panel athlete-search">
@@ -213,9 +194,6 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 								</button>
 							</div>
 						</div>
-						<Suspense fallback={<Loading label="載入成績預測…" />}>
-							<AthleteForecast key={`${athlete.id}:${currentEvent}`} athlete={athlete} eventLabel={currentEvent} event={info} records={records} dataRulesVersion={manifest.dataRulesVersion} />
-						</Suspense>
 						{filtered[0]?.kind === "combined" ? (
 							<div className="context-note">全能總分依組別分開顯示，不同組別可能使用不同分項與計分方式。</div>
 						) : filtered[0]?.kind === "combined-component" ? (
@@ -226,19 +204,18 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 							<Stat label="出賽紀錄" value={number(filtered.length)} unit="筆" detail={`${new Set(filtered.map(r => r.meetId)).size} 場賽事`} />
 							<Stat label="紀錄年份" value={filtered.length ? `${filtered[0].year}–${filtered.at(-1)!.year}` : "—"} detail="僅代表資料庫可查期間" />
 						</div>
-						<section className="panel">
-							<div className="panel-heading">
-								<h2>{currentEvent}成績變化</h2>
-								<span>每{axis === "age" ? "個年齡" : "年"}最佳</span>
-							</div>
-							{stats.length ? (
-								<Suspense fallback={<Loading />}>
-									<Chart option={chart} height={330} label={`${athlete.name}歷年最佳成績曲線`} />
-								</Suspense>
-							) : (
-								<Empty>{axis === "age" ? "沒有可確認出生年的成績。" : "沒有有效的個人成績。"}</Empty>
-							)}
-						</section>
+						<Suspense fallback={<Loading label="載入歷屆成績圖表…" />}>
+							<AthletePerformanceChart
+								key={`${athlete.id}:${currentEvent}`}
+								athlete={athlete}
+								eventLabel={currentEvent}
+								event={info}
+								records={records}
+								history={valid}
+								axis={axis}
+								dataRulesVersion={manifest.dataRulesVersion}
+							/>
+						</Suspense>
 						<section className="panel">
 							<div className="panel-heading">
 								<h2>學校與單位紀錄</h2>
