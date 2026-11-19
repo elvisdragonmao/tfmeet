@@ -22,6 +22,12 @@ test("race walks convert meters to kilometers without changing the timing unit",
 	assert.equal(normalizeEvent("2000M").family, "2000M");
 });
 
+test("large team relay labels share the 12×100-meter event", () => {
+	for (const name of ["大隊接力", "12×100公尺大隊接力", "12x100m接力", "12 x 100M Relay"]) {
+		assert.deepEqual(normalizeEvent(name), { family: "12×100M大隊接力", specification: null, unit: "s" });
+	}
+});
+
 test("equipment synonyms use the same metric size while distinct historical sizes survive", () => {
 	assert.equal(normalizeEvent("110M跨欄(0.990m)").specification, 991);
 	assert.equal(normalizeEvent("110 Meters Hurdles(39in)").specification, 991);

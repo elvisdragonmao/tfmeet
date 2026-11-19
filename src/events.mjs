@@ -32,7 +32,7 @@ const hurdles = {
 	"400M跨欄": { 國中: [838, 762], 高中: [914, 762], 成年: [914, 762] }
 };
 
-export const dataRulesVersion = 8;
+export const dataRulesVersion = 9;
 
 export function normalizeSpecification(family, size) {
 	return family === "鉛球" && size === 2730 ? 2720 : size;
@@ -80,6 +80,7 @@ export function normalizeEvent(source) {
 	if (family === "400M接力") family = "4×100M接力";
 	if (family === "800M接力") family = "4×200M接力";
 	if (family === "1600M接力") family = "4×400M接力";
+	if (family === "大隊接力" || family === "12×100M接力") family = "12×100M大隊接力";
 	if (/^(?:混合4×400M|4×400M混合)接力$/.test(family)) family = "4×400M混合接力";
 	if (family === "壘球") family = "壘球擲遠";
 	if (family === "混合運動") family = "全能運動";
