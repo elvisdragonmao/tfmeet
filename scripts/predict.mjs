@@ -21,6 +21,8 @@ const initial = predictPerformance(artifact, input);
 if (initial.status === "ok" && initial.model === "personal" && input.history === undefined && input.athleteId && Number.isInteger(input.currentYear)) {
 	if (!/^[a-f0-9]{20}$/.test(input.athleteId)) throw new Error("Invalid athlete ID.");
 	const event = normalizeEvent(input.event).family;
+	const manifest = JSON.parse(await readFile(new URL("manifest.json", snapshotRoot)));
+	input.athleteId = manifest.athleteRedirects?.[input.athleteId] ?? input.athleteId;
 	const readGzip = async path => JSON.parse(gunzipSync(await readFile(new URL(path, snapshotRoot))));
 	const athlete = (await readGzip("athletes.json.gz")).find(row => row.id === input.athleteId);
 	if (athlete) {

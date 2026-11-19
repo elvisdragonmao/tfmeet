@@ -57,6 +57,7 @@ export interface Meet {
 }
 export interface Manifest {
 	dataRulesVersion?: number;
+	athleteRedirects?: Record<string, string>;
 	restricted?: number;
 	schemaVersion: number;
 	updatedAt: string;

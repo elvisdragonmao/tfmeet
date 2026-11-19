@@ -37,6 +37,7 @@ const events = new Map(),
 	buckets = new Map();
 const eventLabels = new Map();
 const groupLabels = new Map();
+const mergedAthleteIds = new Map();
 let count = 0,
 	withAge = 0;
 for (const meet of manifest.meets) {
@@ -89,6 +90,11 @@ for (const meet of manifest.meets) {
 		count++;
 		if (r.age !== null) withAge++;
 		if (record.kind === "relay") continue;
+		if (ident.basis === "verified-source-alias" && r.name !== ident.displayName) {
+			const originalId = identity(r, ambiguous).id;
+			const target = mergedAthleteIds.get(originalId);
+			mergedAthleteIds.set(originalId, target === undefined || target === ident.id ? ident.id : null);
+		}
 		if (!athletes.has(ident.id))
 			athletes.set(ident.id, {
 				id: ident.id,
@@ -185,6 +191,7 @@ manifest = {
 	derivedAt: new Date().toISOString(),
 	recordCount: count,
 	athleteCount: athletes.size,
+	athleteRedirects: Object.fromEntries([...mergedAthleteIds].filter(([id, target]) => target && !athletes.has(id))),
 	identityConflicts: ambiguous.size,
 	withAge,
 	complete: manifest.meets.filter(m => m.status === "complete").length,

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { normalizeEvent } from "../src/events.mjs";
 // Use the same key for verified aliases, or distinct keys with basis "verified-separation" for verified homonyms.
 // Match each exception using the source's identifying fields and include public evidence and a reason.
 export const identityOverrides = [
@@ -75,9 +76,11 @@ const aliasKey = (name, r) =>
 			.toUpperCase()
 			.replace(/[^A-Z]/g, ""),
 		r.gender,
-		r.birthYear,
-		r.team.normalize("NFKC").trim()
+		r.birthYear
 	].join("|");
+const normalizedTeam = team => team.normalize("NFKC").trim();
+const teamAliasKey = (alias, record) => `${alias}|team:${normalizedTeam(record.team)}`;
+const internationalAliasKey = alias => `${alias}|international`;
 
 export function sourceNameAlias(record) {
 	if (!record.birthYear || !["M", "F"].includes(record.gender) || !/^\p{Script=Han}+$/u.test(record.name)) return null;
@@ -94,13 +97,34 @@ export function registerSourceAlias(aliases, record) {
 	const alias = sourceNameAlias(record);
 	if (!alias || !record.source || !record.team.trim()) return;
 	const key = aliasKey(alias, record);
-	const existing = aliases.get(key);
-	if (existing === undefined) aliases.set(key, { name: record.name, key: baseIdentityKey(record), source: record.source });
-	else if (existing?.key !== baseIdentityKey(record)) aliases.set(key, null);
+	const teamKey = teamAliasKey(key, record);
+	const identityKey = baseIdentityKey(record);
+	const existing = aliases.get(teamKey);
+	if (existing === undefined) aliases.set(teamKey, { name: record.name, key: identityKey, source: record.source });
+	else if (existing?.key !== identityKey) aliases.set(teamKey, null);
+
+	if (!record.event) return;
+	const internationalKey = internationalAliasKey(key);
+	if (!aliases.has(internationalKey)) aliases.set(internationalKey, { name: record.name, key: identityKey, events: new Map() });
+	const international = aliases.get(internationalKey);
+	if (international?.key !== identityKey) {
+		aliases.set(internationalKey, null);
+		return;
+	}
+	const { family } = normalizeEvent(record.event);
+	if (family && !international.events.has(family)) international.events.set(family, record.source);
 }
 
 function matchingSourceName(aliases, record, ambiguous) {
 	if (!aliases || !record.birthYear || !romanizedName.test(record.name)) return null;
-	const match = aliases.get(aliasKey(record.name, record));
-	return match && !ambiguous?.has(match.key) ? match : null;
+	const key = aliasKey(record.name, record);
+	const sameTeam = aliases.get(teamAliasKey(key, record));
+	if (sameTeam !== undefined) return sameTeam && !ambiguous?.has(sameTeam.key) ? sameTeam : null;
+
+	// International results may give the federation code in place of the school or club.
+	if (normalizedTeam(record.team).toUpperCase() !== "TPE" || !record.event) return null;
+	const match = aliases.get(internationalAliasKey(key));
+	if (!match || ambiguous?.has(match.key)) return null;
+	const source = match.events.get(normalizeEvent(record.event).family);
+	return source ? { name: match.name, key: match.key, source } : null;
 }

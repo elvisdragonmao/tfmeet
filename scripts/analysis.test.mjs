@@ -91,7 +91,7 @@ test("separate scored entries in the same heat split homonyms even at the same s
 	assert.equal(canReviewAthletesTogether(a, b), false);
 });
 
-test("source names merge within the same gender, birth year, and school only", () => {
+test("school aliases require the same gender and birth year and stay separate on collision", () => {
 	const sourceAliases = new Map();
 	const chinese = r("林小安", 12, { birthYear: 2008, fields: { "選 手": "林小安 2008 HSIAO-AN LIN" }, source: "https://example.test/results" });
 	const english = { ...chinese, name: "Hsiao-An Lin" };
@@ -103,6 +103,23 @@ test("source names merge within the same gender, birth year, and school only", (
 	assert.notEqual(identity({ ...english, birthYear: 2007 }, null, sourceAliases).id, identity(chinese).id);
 	registerSourceAlias(sourceAliases, { ...chinese, name: "林曉安", fields: { "選 手": "林曉安 2008 HSIAO-AN LIN" } });
 	assert.equal(identity(english, null, sourceAliases).id, identity(english).id);
+});
+
+test("a unique bilingual match connects a TPE entrant to the same event at a school", () => {
+	const aliases = new Map();
+	const chinese = r("吳彥翰", 5.26, { birthYear: 2005, event: "撐竿跳高", fields: { "選 手": "吳彥翰 2005 YAN-HAN WU" }, source: "https://example.test/results" });
+	const international = { ...chinese, name: "Yan-Han Wu", team: "TPE", event: "Pole Vault", fields: {} };
+	registerSourceAlias(aliases, chinese);
+	const canonical = identity(chinese).id;
+	assert.equal(identity(international, null, aliases).id, canonical);
+	assert.equal(identity(international, null, aliases).displayName, chinese.name);
+	assert.deepEqual(identity(international, null, aliases).evidence, [chinese.source]);
+	for (const change of [{ team: "JPN" }, { event: "跳高" }, { birthYear: 2006 }, { birthYear: null }, { gender: "F" }]) {
+		assert.notEqual(identity({ ...international, ...change }, null, aliases).id, canonical);
+	}
+	assert.notEqual(identity(international, new Map([["吳彥翰|M|2005", "registration"]]), aliases).id, canonical);
+	registerSourceAlias(aliases, { ...chinese, name: "吳彥涵", team: "另一學校", fields: { "選 手": "吳彥涵 2005 YAN-HAN WU" } });
+	assert.equal(identity(international, null, aliases).id, identity(international).id);
 });
 
 test("verified splits override a shared identity key and cannot be combined in the UI", () => {

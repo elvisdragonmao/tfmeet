@@ -32,7 +32,7 @@ const hurdles = {
 	"400M跨欄": { 國中: [838, 762], 高中: [914, 762], 成年: [914, 762] }
 };
 
-export const dataRulesVersion = 3;
+export const dataRulesVersion = 4;
 
 export function normalizeSpecification(family, size) {
 	return family === "鉛球" && size === 2730 ? 2720 : size;

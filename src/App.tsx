@@ -85,6 +85,7 @@ export default function App() {
 	const [to, setTo] = useState(Number(initial.get("to")) || new Date().getFullYear());
 	const [team, setTeam] = useState(initial.get("team") || "");
 	const [selectedAthlete, setSelectedAthlete] = useState(initial.get("athlete") || "");
+	const canonicalAthlete = manifest?.athleteRedirects?.[selectedAthlete] ?? selectedAthlete;
 	const [copied, setCopied] = useState(false);
 	const [advanced, setAdvanced] = useState(Boolean(age || round || wind !== "all"));
 	useEffect(() => {
@@ -153,9 +154,9 @@ export default function App() {
 		if (round) q.set("round", round);
 		q.set("from", String(from));
 		q.set("to", String(to));
-		if (page === "athletes" && selectedAthlete) q.set("athlete", selectedAthlete);
+		if (page === "athletes" && canonicalAthlete) q.set("athlete", canonicalAthlete);
 		history.replaceState(null, "", `?${q}`);
-	}, [page, chosen?.label, eventName, gender, group, age, wind, round, from, to, team, selectedAthlete]);
+	}, [page, chosen?.label, eventName, gender, group, age, wind, round, from, to, team, canonicalAthlete]);
 	const openAthlete = (id: string) => {
 		setSelectedAthlete(id);
 		setPage("athletes");
@@ -431,7 +432,7 @@ export default function App() {
 									</>
 								) : (
 									<Suspense fallback={<Loading />}>
-										{page === "athletes" ? <Athletes manifest={manifest} selectedId={selectedAthlete} onSelect={setSelectedAthlete} /> : <Archive manifest={manifest} />}
+										{page === "athletes" ? <Athletes manifest={manifest} selectedId={canonicalAthlete} onSelect={setSelectedAthlete} /> : <Archive manifest={manifest} />}
 									</Suspense>
 								)}
 								<Methodology />

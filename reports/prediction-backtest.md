@@ -1,6 +1,6 @@
 # 田徑成績預測回測
 
-模型版本 `tfmeet-p1-d25f2cc19a65ef60`。資料及排除條件見[品質報告](prediction-data.md)。完整分層、基準與候選模型見[回測 CSV](prediction-backtest.csv)，其單位是秒或公尺。各候選的擬合係數、樣條節點與對數曲線值見[係數 JSON](prediction-coefficients.json)，實際可用的模型見[模型檔](../public/prediction-model.json)。
+模型版本 `tfmeet-p1-a5e71ea3c9afe710`。資料及排除條件見[品質報告](prediction-data.md)。完整分層、基準與候選模型見[回測 CSV](prediction-backtest.csv)，其單位是秒或公尺。各候選的擬合係數、樣條節點與對數曲線值見[係數 JSON](prediction-coefficients.json)，實際可用的模型見[模型檔](../public/prediction-model.json)。
 
 | 預測類型 | 回測分組 | 通過分組 |
 | --- | --- | --- |

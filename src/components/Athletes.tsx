@@ -7,7 +7,7 @@ import { Empty, ErrorNotice, genderName, Loading, number, ResultsTable, Stat, un
 const AthletePerformanceChart = lazy(() => import("./AthletePerformanceChart"));
 const identityNotes: Record<string, string> = {
 	"verified-override": "已依公開資料核對身分與姓名。",
-	"verified-source-alias": "同一來源成績列有中英文姓名，並以出生年及單位核對後合併。",
+	"verified-source-alias": "以來源成績列的中英文對照與出生年核對。國際賽紀錄另核對代表隊及比賽項目。",
 	"verified-separation": "公開資料已確認為不同選手，成績分開計算。",
 	"distinct-start-registrations": "同名選手在同場次有不同參賽編號和成績，已按報名紀錄拆開。",
 	"name-gender-birth-team": "同名、同出生年在同一賽會有不同編號與單位，已依單位拆分。",

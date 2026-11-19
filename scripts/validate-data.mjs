@@ -62,6 +62,14 @@ if (m.dataRulesVersion) {
 		for (const { size, count, valid } of event.specifications) assert.deepEqual(sizes.get(size), { count, valid });
 	}
 }
+if (m.athleteRedirects) {
+	const athletes = JSON.parse(gunzipSync(await readFile(new URL("athletes.json.gz", root))));
+	const ids = new Set(athletes.map(athlete => athlete.id));
+	for (const [previous, canonical] of Object.entries(m.athleteRedirects)) {
+		assert.ok(!ids.has(previous), `Redirect would hide an active athlete ${previous}`);
+		assert.ok(ids.has(canonical), `Missing redirect target ${canonical}`);
+	}
+}
 await stat(new URL("archive.json.gz", root));
 console.log(`Data verified: ${m.meets.length} competitions, ${sessions} source sessions, ${count} records; ${m.partial} competitions with disclosed gaps.`);
 
