@@ -32,7 +32,7 @@ const hurdles = {
 	"400M跨欄": { 國中: [838, 762], 高中: [914, 762], 成年: [914, 762] }
 };
 
-export const dataRulesVersion = 5;
+export const dataRulesVersion = 6;
 
 export function normalizeSpecification(family, size) {
 	return family === "鉛球" && size === 2730 ? 2720 : size;
@@ -93,12 +93,13 @@ const cleanGroup = group => group.normalize("NFKC").replace(/\s/g, "").replace(/
 const groupCategory = group => group.replace(/全能|三項|混合接力|混合/g, "");
 const ageGroupPattern = /^U(\d+)(?:選拔)?(?:[男女](?:生|子)?)?(?:選拔)?$/i;
 
-export function normalizeGroup(group, gender) {
+export function normalizeGroup(group, gender, event) {
 	const raw = cleanGroup(group);
 	const category = groupCategory(raw);
 	const sex = gender === "M" ? "男子" : gender === "F" ? "女子" : gender === "X" ? "混合" : "";
+	const junior = event === "60M" ? "國小" : "國中";
 	if (/國小|小學|[男女]童|^小[男女]|^[男女]生[甲乙]?$/.test(category)) return `國小${sex}`;
-	if (/國中|初中|^國[男女]/.test(category)) return `國中${sex}`;
+	if (/國中|初中|^國[男女]/.test(category)) return junior + sex;
 	if (/高中|高職|^高[男女]|^(?:[台臺]日(?:青[男女]|[男女]青)|亞青少[男女](?:選拔)?)$/.test(category)) return `高中${sex}`;
 	if (/成年|成人/.test(category)) return `成年${sex}`;
 	const college = category.match(/^(?:大專|大學)(?:[男女](?:生|子)?)?([甲乙])?$/);
@@ -107,7 +108,7 @@ export function normalizeGroup(group, gender) {
 	const ageGroup = category.match(ageGroupPattern);
 	if (ageGroup) {
 		const [, limit] = ageGroup;
-		if (/^1[345]$/.test(limit)) return `國中${sex}`;
+		if (/^1[345]$/.test(limit)) return junior + sex;
 		if (/^1[678]$/.test(limit)) return `高中${sex}`;
 		return singleSex && /^(?:19|20)$/.test(limit) ? `公開${sex}` : `U${limit}${sex}`;
 	}

@@ -77,7 +77,7 @@ export default function App() {
 	const [page, setPage] = useState(pages.some(p => p.id === initial.get("view")) ? initial.get("view")! : "distribution");
 	const [eventName, setEventName] = useState(initial.get("event") || "100M");
 	const [gender, setGender] = useState(initial.get("gender") || "M");
-	const [group, setGroup] = useState(() => normalizeGroup(initial.get("group") || "", initial.get("gender") || "M"));
+	const [group, setGroup] = useState(() => normalizeGroup(initial.get("group") || "", initial.get("gender") || "M", normalizeEvent(eventName).family));
 	const [age, setAge] = useState(initial.get("age") || "");
 	const [wind, setWind] = useState(initial.get("wind") || "all");
 	const [round, setRound] = useState(initial.get("round") || "");
@@ -301,7 +301,7 @@ export default function App() {
 																onClick={() => {
 																	if (g === gender) return;
 																	setGender(g);
-																	setGroup(current => normalizeGroup(current.replace(/男子|女子/g, genderName(g)), g));
+																	setGroup(current => normalizeGroup(current.replace(/男子|女子/g, genderName(g)), g, chosen?.name));
 																	setAge("");
 																	setRound("");
 																}}

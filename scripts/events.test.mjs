@@ -77,3 +77,11 @@ test("college, open and youth group aliases normalize for both genders", () => {
 	assert.equal(normalizeGroup("U15混合", "X"), "國中混合");
 	assert.equal(normalizeGroup("Ｕ１８混合組", "X"), "高中混合");
 });
+
+test("60-meter results combine junior high and elementary school groups only for that event", () => {
+	assert.equal(normalizeGroup("U13女生", "F", "60M"), "國小女子");
+	assert.equal(normalizeGroup("國中男子", "M", "60M"), "國小男子");
+	assert.equal(normalizeGroup("國小男生", "M", "60M"), "國小男子");
+	assert.equal(normalizeGroup("U13女生", "F", "100M"), "國中女子");
+	assert.equal(normalizeGroup("國中男子", "M", "100M"), "國中男子");
+});

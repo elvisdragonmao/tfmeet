@@ -57,8 +57,8 @@ for (const meet of manifest.meets) {
 		const ident = identity(r, ambiguous, sourceAliases);
 		if (!eventLabels.has(r.event)) eventLabels.set(r.event, normalizeEvent(r.event));
 		const { family: event, unit, specification: stated } = eventLabels.get(r.event);
-		const groupKey = r.group + "|" + r.gender;
-		if (!groupLabels.has(groupKey)) groupLabels.set(groupKey, normalizeGroup(r.group, r.gender));
+		const groupKey = r.group + "|" + r.gender + "|" + event;
+		if (!groupLabels.has(groupKey)) groupLabels.set(groupKey, normalizeGroup(r.group, r.gender, event));
 		const group = groupLabels.get(groupKey);
 		const specification = stated ?? inferSpecification(event, r.group, r.gender, r.age);
 		const eventKey = event + "|" + r.gender;
