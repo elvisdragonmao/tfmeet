@@ -99,6 +99,11 @@ test("power and anchored reciprocal are independently callable and preserve natu
 	assert.equal(predictFormula({ form: "carry" }, p), 12);
 });
 
+test("historical shot put aliases do not request a weight conversion", () => {
+	const result = predictPerformance(artifact, { event: "鉛球 2.73 kg", gender: "M", currentAge: 12, currentWeightKg: 2.73, targetWeightKg: 2.72, mark: 10 });
+	assert.equal(result.reason, "no-change");
+});
+
 test("calibration uses the finite sample rank and fails when the rank is unsupported", () => {
 	const model = { form: "carry" };
 	const values = [0.1, 0.2, 0.3, 0.4, 0.5].map(error => ({ start: { value: 1 }, end: { value: 1 + error } }));

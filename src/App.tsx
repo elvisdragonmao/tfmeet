@@ -32,6 +32,7 @@ const pages = [
 const initial = new URLSearchParams(location.search);
 const eventOrder = new Intl.Collator("zh-TW", { numeric: true });
 type EventChoice = { label: string; name: string; size?: number; genders: string[] };
+type EventGroup = { name: string; choices: EventChoice[] };
 
 function eventOptions(manifest: Manifest | null) {
 	const families = new Map<string, { all: EventChoice; sizes: Map<number, EventChoice> }>();
@@ -46,7 +47,15 @@ function eventOptions(manifest: Manifest | null) {
 			family.sizes.get(size)!.genders.push(event.gender);
 		}
 	}
-	return [...families.values()].sort((a, b) => eventOrder.compare(a.all.name, b.all.name)).map(({ all, sizes }) => [all, ...[...sizes.values()].sort((a, b) => a.size! - b.size!)]);
+	const track: EventGroup = { name: "田徑", choices: [] };
+	const walks: EventGroup = { name: "競走", choices: [] };
+	const equipment: EventGroup[] = [];
+	for (const { all, sizes } of [...families.values()].sort((a, b) => eventOrder.compare(a.all.name, b.all.name))) {
+		if (all.name.endsWith("競走")) walks.choices.push(all);
+		else if (sizes.size === 0) track.choices.push(all);
+		else equipment.push({ name: all.name, choices: [all, ...[...sizes.values()].sort((a, b) => a.size! - b.size!)] });
+	}
+	return [track, ...equipment, walks].filter(group => group.choices.length);
 }
 
 function eventOption(choice: EventChoice) {
@@ -97,7 +106,7 @@ export default function App() {
 		};
 	}, [retry]);
 	const options = useMemo(() => eventOptions(manifest), [manifest]);
-	const choices = useMemo(() => options.flat(), [options]);
+	const choices = useMemo(() => options.flatMap(group => group.choices), [options]);
 	const legacy = normalizeEvent(eventName);
 	const chosen =
 		choices.find(choice => choice.label === eventName) ||
@@ -273,15 +282,11 @@ export default function App() {
 															setRound("");
 														}}
 													>
-														{options.map(group =>
-															group.length === 1 ? (
-																eventOption(group[0])
-															) : (
-																<optgroup key={group[0].name} label={group[0].name}>
-																	{group.map(eventOption)}
-																</optgroup>
-															)
-														)}
+														{options.map(group => (
+															<optgroup key={group.name} label={group.name}>
+																{group.choices.map(eventOption)}
+															</optgroup>
+														))}
 													</select>
 												</label>
 												<fieldset className="gender-field">

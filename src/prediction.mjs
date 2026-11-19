@@ -1,4 +1,4 @@
-import { normalizeEvent } from "./events.mjs";
+import { normalizeEvent, normalizeSpecification } from "./events.mjs";
 
 const massEvents = new Set(["鉛球", "鐵餅", "標槍", "鏈球"]);
 const ageBandStarts = [5, 13, 16, 19, 23, 30, 40, 50, 60, 70, 80, 90];
@@ -65,7 +65,7 @@ function compatibleHistory(input, event, mass) {
 		if (family !== event) continue;
 		if (!Number.isInteger(row.age) || row.age >= input.currentAge || row.age < 5 || !Number.isFinite(row.mark) || row.mark <= 0) continue;
 		if (row.year !== undefined && (!Number.isInteger(input.currentYear) || !Number.isInteger(row.year) || input.currentYear - row.year !== input.currentAge - row.age)) continue;
-		const rowMass = massEvents.has(event) ? (Number.isFinite(row.weightKg) ? Math.round(row.weightKg * 1000) : specification) : (row.specificationMm ?? specification);
+		const rowMass = massEvents.has(event) ? normalizeSpecification(event, Number.isFinite(row.weightKg) ? Math.round(row.weightKg * 1000) : specification) : (row.specificationMm ?? specification);
 		if (rowMass !== mass || (specification !== null && specification !== rowMass)) continue;
 		if (!byAge.has(row.age)) byAge.set(row.age, []);
 		byAge.get(row.age).push(row.mark);
@@ -95,8 +95,8 @@ export function predictPerformance(artifact, input) {
 		const target = input.targetWeightKg ?? kg;
 		if (![kg, target].every(value => Number.isFinite(value) && value > 0 && Math.abs(value * 1000 - Math.round(value * 1000)) < 1e-6))
 			return reject("equipment-required", "請提供實際的目前器材重量，單位 kg。");
-		from = Math.round(kg * 1000);
-		to = Math.round(target * 1000);
+		from = normalizeSpecification(event, Math.round(kg * 1000));
+		to = normalizeSpecification(event, Math.round(target * 1000));
 		if (labelSpec !== null && from !== labelSpec) return reject("equipment-conflict", "項目名稱與輸入的目前重量互相矛盾。");
 	} else {
 		if (hasMass) return reject("weight-not-applicable", "這個項目沒有可用的重量換算模型。");

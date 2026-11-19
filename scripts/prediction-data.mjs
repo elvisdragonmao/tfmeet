@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
 import { quantile, uniqueStarts } from "../src/analysis.mjs";
+import { dataRulesVersion } from "../src/events.mjs";
 
 export const snapshotRoot = new URL("../public/data/", import.meta.url);
 export const throwingEvents = new Set(["鉛球", "鐵餅", "標槍"]);
@@ -184,7 +185,7 @@ export function dataDistribution(records) {
 
 export async function loadPredictionData(root = snapshotRoot) {
 	const manifest = JSON.parse(await readFile(new URL("manifest.json", root)));
-	if ((manifest.dataRulesVersion ?? 0) < 2) throw new Error("Run pnpm run data:derive to restore the normalized event indexes first.");
+	if (manifest.dataRulesVersion !== dataRulesVersion) throw new Error("Run pnpm run data:derive to restore the normalized event indexes first.");
 	const readGzip = async name => JSON.parse(gunzipSync(await readFile(new URL(name, root))));
 	const athletes = await readGzip("athletes.json.gz");
 	const identityById = new Map(

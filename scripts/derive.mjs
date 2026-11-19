@@ -47,6 +47,7 @@ for (const meet of manifest.meets) {
 		throw new Error(`Missing meet ${meet.id}: ${e.message}`);
 	}
 	meet.records = d.records.length;
+	meet.category = (d.category ?? meet.category)?.trim() || "田徑";
 	meet.pages = d.pages.length;
 	meet.status = d.status;
 	meet.errors = d.errors;
@@ -58,7 +59,7 @@ for (const meet of manifest.meets) {
 		const groupKey = r.group + "|" + r.gender;
 		if (!groupLabels.has(groupKey)) groupLabels.set(groupKey, normalizeGroup(r.group, r.gender));
 		const group = groupLabels.get(groupKey);
-		const specification = stated ?? inferSpecification(event, group, r.gender, r.age);
+		const specification = stated ?? inferSpecification(event, r.group, r.gender, r.age);
 		const eventKey = event + "|" + r.gender;
 		if (!events.has(eventKey))
 			events.set(eventKey, {

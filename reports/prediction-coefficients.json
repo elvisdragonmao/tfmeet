@@ -1,5 +1,5 @@
 {
-  "modelVersion": "tfmeet-p1-a428fad0dcbe5fff",
+  "modelVersion": "tfmeet-p1-d25f2cc19a65ef60",
   "calendar": {
     "trainEnd": 2021,
     "tuneEnd": 2022,
@@ -1492,19 +1492,6 @@
       ]
     },
     {
-      "mode": "age",
-      "event": "鉛球",
-      "gender": "M",
-      "specification": 2730,
-      "pairs": 0,
-      "athletes": 0,
-      "candidates": [
-        {
-          "form": "carry"
-        }
-      ]
-    },
-    {
       "mode": "weight",
       "event": "鉛球",
       "gender": "M",
@@ -2899,19 +2886,6 @@
             4.310075277685909,
             6.895050999200945
           ]
-        }
-      ]
-    },
-    {
-      "mode": "age",
-      "event": "鉛球",
-      "gender": "F",
-      "specification": 2730,
-      "pairs": 0,
-      "athletes": 0,
-      "candidates": [
-        {
-          "form": "carry"
         }
       ]
     },
@@ -5995,7 +5969,7 @@
     },
     {
       "mode": "age",
-      "event": "5000M競走",
+      "event": "5KM競走",
       "gender": "M",
       "specification": null,
       "pairs": 84,
@@ -6101,7 +6075,7 @@
     },
     {
       "mode": "age",
-      "event": "3000M競走",
+      "event": "3KM競走",
       "gender": "F",
       "specification": null,
       "pairs": 48,
@@ -6220,7 +6194,7 @@
     },
     {
       "mode": "age",
-      "event": "3000M競走",
+      "event": "3KM競走",
       "gender": "M",
       "specification": null,
       "pairs": 37,
@@ -6432,7 +6406,7 @@
     },
     {
       "mode": "age",
-      "event": "5000M競走",
+      "event": "5KM競走",
       "gender": "F",
       "specification": null,
       "pairs": 112,
@@ -6538,7 +6512,7 @@
     },
     {
       "mode": "age",
-      "event": "10000M競走",
+      "event": "10KM競走",
       "gender": "M",
       "specification": null,
       "pairs": 95,
@@ -6657,7 +6631,7 @@
     },
     {
       "mode": "age",
-      "event": "10000M競走",
+      "event": "10KM競走",
       "gender": "F",
       "specification": null,
       "pairs": 77,
@@ -6776,7 +6750,7 @@
     },
     {
       "mode": "age",
-      "event": "2000M競走",
+      "event": "2KM競走",
       "gender": "F",
       "specification": null,
       "pairs": 6,
@@ -6789,7 +6763,7 @@
     },
     {
       "mode": "age",
-      "event": "2000M競走",
+      "event": "2KM競走",
       "gender": "M",
       "specification": null,
       "pairs": 0,
@@ -6815,7 +6789,7 @@
     },
     {
       "mode": "age",
-      "event": "20000M競走",
+      "event": "20KM競走",
       "gender": "M",
       "specification": null,
       "pairs": 2,
@@ -6828,7 +6802,7 @@
     },
     {
       "mode": "age",
-      "event": "20000M競走",
+      "event": "20KM競走",
       "gender": "F",
       "specification": null,
       "pairs": 3,

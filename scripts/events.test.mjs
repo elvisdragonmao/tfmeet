@@ -13,6 +13,15 @@ test("track distances, bilingual labels, and field events share canonical names"
 	assert.equal(normalizeEvent("Combined Events").unit, "points");
 });
 
+test("race walks convert meters to kilometers without changing the timing unit", () => {
+	for (const name of ["2000M競走", "2000 公尺競走", "2公里競走", "2km Race Walk", "2KM競走"]) {
+		assert.deepEqual(normalizeEvent(name), { family: "2KM競走", specification: null, unit: "s" });
+	}
+	assert.equal(normalizeEvent("10000m Walk").family, "10KM競走");
+	assert.equal(normalizeEvent("1500M競走").family, "1.5KM競走");
+	assert.equal(normalizeEvent("2000M").family, "2000M");
+});
+
 test("equipment synonyms use the same metric size while distinct historical sizes survive", () => {
 	assert.equal(normalizeEvent("110M跨欄(0.990m)").specification, 991);
 	assert.equal(normalizeEvent("110 Meters Hurdles(39in)").specification, 991);
@@ -20,7 +29,9 @@ test("equipment synonyms use the same metric size while distinct historical size
 	for (const unit of ["lbs", "lb", "p", "P", "磅"]) {
 		assert.equal(normalizeEvent(`Shot Put(3)(6${unit})`).specification, 2720);
 	}
-	assert.equal(normalizeEvent("鉛球(2.73kg)").specification, 2730);
+	for (const name of ["鉛球(2.73kg)", "鉛球（2730 公克）", "鉛球 2.73 kg", "鉛球 2.72 kg（6 磅）"]) {
+		assert.deepEqual(normalizeEvent(name), { family: "鉛球", specification: 2720, unit: "m" });
+	}
 	assert.equal(normalizeEvent("Discus Throw(7)(1.75公斤)").specification, 1750);
 	assert.equal(normalizeEvent("Javelin Throw(500公克)").specification, 500);
 	assert.equal(specificationLabel("鉛球", 2720), "2.72 kg（6 磅）");
@@ -32,7 +43,6 @@ test("school, sex, and age select the requested equipment standards", () => {
 	for (const raw of ["國小男子", "男生", "男童", "男童乙", "北市國小男子"]) assert.equal(normalizeGroup(raw, "M"), "國小男子");
 	assert.equal(normalizeGroup("國女", "F"), "國中女子");
 	assert.equal(normalizeGroup("小女三項", "F"), "國小女子");
-	assert.equal(normalizeGroup("大專女乙", "F"), "大專女子乙");
 	assert.equal(inferSpecification("110M跨欄", "高中男子", "M", 15), 991);
 	assert.equal(inferSpecification("110M跨欄", "成年男子", "M", 18), 1067);
 	assert.equal(inferSpecification("400M跨欄", "國中男子", "M", null), 838);
@@ -44,4 +54,20 @@ test("school, sex, and age select the requested equipment standards", () => {
 	assert.equal(inferSpecification("標槍", "女子", "F", 14), 500);
 	assert.equal(inferSpecification("標槍", "國小男子", "M", null), null);
 	assert.equal(inferSpecification("鐵餅", "公開女子", "F", null), null);
+	assert.equal(inferSpecification("鉛球", "大專男乙", "M", null), 7260);
+	assert.equal(inferSpecification("110M跨欄", "亞青少男選拔", "M", null), 991);
+});
+
+test("college, open and youth group aliases normalize for both genders", () => {
+	for (const [gender, sex] of [
+		["F", "女"],
+		["M", "男"]
+	]) {
+		for (const raw of [`一般${sex}生`, `大專${sex}子`, `大專${sex}乙`]) assert.equal(normalizeGroup(raw, gender), `一般${sex}子`);
+		for (const raw of [`公開${sex}子`, `大專${sex}甲`, `${sex}子`, `U19 ${sex}子`, `Ｕ２０ ${sex}生`, `U20選拔${sex}子`]) assert.equal(normalizeGroup(raw, gender), `公開${sex}子`);
+		for (const raw of [`台日${sex}青`, `臺日青${sex}`, `亞青少${sex}`, `亞青少${sex}選拔`]) assert.equal(normalizeGroup(raw, gender), `高中${sex}子`);
+		assert.equal(normalizeGroup(`U18${sex}子`, gender), `U18${sex}子`);
+		assert.equal(normalizeGroup(`成年${sex}子`, gender), `成年${sex}子`);
+	}
+	assert.equal(normalizeGroup("大專乙混合", "X"), "大專混合乙");
 });
