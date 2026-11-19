@@ -7,6 +7,8 @@ const Chart = lazy(() => import("./Chart"));
 export default function Distribution({ rows, data, eventLabel, manifest, onAthlete }: { rows: Result[]; data: EventData; eventLabel: string; manifest: Manifest; onAthlete: (id: string) => void }) {
 	const [score, setScore] = useState(new URLSearchParams(location.search).get("score") || "");
 	const [allAttempts, setAllAttempts] = useState(new URLSearchParams(location.search).get("attempts") === "all");
+	const relay = data.kind === "relay";
+	const allStarts = relay || allAttempts;
 	useEffect(() => {
 		const q = new URLSearchParams(location.search);
 		if (score) q.set("score", score);
@@ -15,7 +17,7 @@ export default function Distribution({ rows, data, eventLabel, manifest, onAthle
 		else q.delete("attempts");
 		history.replaceState(null, "", `?${q}`);
 	}, [score, allAttempts]);
-	const cohort = useMemo(() => (allAttempts ? rows : bestPerAthlete(rows, data.lowerIsBetter)), [rows, allAttempts, data.lowerIsBetter]);
+	const cohort = useMemo(() => (allStarts ? rows : bestPerAthlete(rows, data.lowerIsBetter)), [rows, allStarts, data.lowerIsBetter]);
 	const sorted = useMemo(() => [...cohort].sort((a, b) => (data.lowerIsBetter ? a.value! - b.value! : b.value! - a.value!)), [cohort, data.lowerIsBetter]);
 	const values = cohort.map(r => r.value!);
 	let min = Infinity,
@@ -46,8 +48,8 @@ export default function Distribution({ rows, data, eventLabel, manifest, onAthle
 				name: unitName(data.unit),
 				nameLocation: "end"
 			},
-			yAxis: { type: "value", minInterval: 1, splitLine: { lineStyle: { color: "#edf0f5" } }, name: allAttempts ? "出賽次數" : "選手人數", nameTextStyle: { align: "left" } },
-			tooltip: { trigger: "axis", valueFormatter: (n: unknown) => `${n} ${allAttempts ? "次" : "人"}` },
+			yAxis: { type: "value", minInterval: 1, splitLine: { lineStyle: { color: "#edf0f5" } }, name: relay ? "隊伍出賽次數" : allStarts ? "出賽次數" : "選手人數", nameTextStyle: { align: "left" } },
+			tooltip: { trigger: "axis", valueFormatter: (n: unknown) => `${n} ${relay ? "隊次" : allStarts ? "次" : "人"}` },
 			series: [
 				{
 					type: "bar",
@@ -60,9 +62,9 @@ export default function Distribution({ rows, data, eventLabel, manifest, onAthle
 				}
 			]
 		}),
-		[cohort, allAttempts, data.unit, data.lowerIsBetter, top10, min, max]
+		[cohort, allStarts, relay, data.unit, data.lowerIsBetter, top10, min, max]
 	);
-	const years = useMemo(() => groupStats(rows, "year", data.lowerIsBetter), [rows, data.lowerIsBetter]);
+	const years = useMemo(() => groupStats(rows, "year", data.lowerIsBetter, relay), [rows, data.lowerIsBetter, relay]);
 	const yearly = useMemo(
 		() => ({
 			tooltip: { trigger: "axis", valueFormatter: (v: unknown) => formatResult(Number(v), data.unit) },
@@ -82,8 +84,13 @@ export default function Distribution({ rows, data, eventLabel, manifest, onAthle
 		<>
 			{cohort.length < 20 ? <div className="context-note">目前只有 {cohort.length} 個比較樣本，百分位容易受到單一成績影響。</div> : null}
 			<div className="stats-grid">
-				<Stat label="比較樣本" value={number(cohort.length)} unit={allAttempts ? "次" : "人"} detail={allAttempts ? "每次出賽各計一次" : "每位候選選手取最佳成績"} />
-				<Stat label="中位數" value={formatResult(med, data.unit)} unit={unitName(data.unit)} detail="50% 選手的成績門檻" />
+				<Stat
+					label="比較樣本"
+					value={number(cohort.length)}
+					unit={relay ? "隊次" : allStarts ? "次" : "人"}
+					detail={relay ? "每隊每次出賽計一筆" : allStarts ? "每次出賽各計一次" : "每位候選選手取最佳成績"}
+				/>
+				<Stat label="中位數" value={formatResult(med, data.unit)} unit={unitName(data.unit)} detail={relay ? "50% 隊伍成績的門檻" : "50% 選手的成績門檻"} />
 				<Stat label="前 10% 門檻" value={formatResult(top10, data.unit)} unit={unitName(data.unit)} detail="依目前篩選條件計算" />
 				<Stat label="最佳成績" value={formatResult(sorted[0]?.value, data.unit)} unit={unitName(data.unit)} detail={`${sorted[0]?.name} · ${sorted[0]?.year}`} />
 			</div>
@@ -91,15 +98,17 @@ export default function Distribution({ rows, data, eventLabel, manifest, onAthle
 				<section className="panel distribution-panel">
 					<div className="panel-heading">
 						<div>
-							<h2>成績分布</h2>
+							<h2>{relay ? "隊伍成績分布" : "成績分布"}</h2>
 							<p>
-								{eventLabel} · {allAttempts ? "所有出賽" : "選手最佳成績"}
+								{eventLabel} · {relay ? "所有隊伍出賽" : allStarts ? "所有出賽" : "選手最佳成績"}
 							</p>
 						</div>
-						<label className="check-label">
-							<input className="checkbox checkbox-xs" type="checkbox" checked={allAttempts} onChange={e => setAllAttempts(e.target.checked)} />
-							計入重複出賽
-						</label>
+						{!relay ? (
+							<label className="check-label">
+								<input className="checkbox checkbox-xs" type="checkbox" checked={allAttempts} onChange={e => setAllAttempts(e.target.checked)} />
+								計入重複出賽
+							</label>
+						) : null}
 					</div>
 					<Suspense fallback={<Loading />}>
 						<Chart option={histogram} label={`${eventLabel}成績分布直方圖，${cohort.length}個樣本`} />
@@ -117,7 +126,7 @@ export default function Distribution({ rows, data, eventLabel, manifest, onAthle
 					<div className="panel-heading">
 						<h2>
 							<TargetIcon size={21} />
-							我的成績在哪裡
+							{relay ? "隊伍成績在哪裡" : "我的成績在哪裡"}
 						</h2>
 					</div>
 					<label className="score-label" htmlFor="score">
@@ -137,14 +146,14 @@ export default function Distribution({ rows, data, eventLabel, manifest, onAthle
 									<em>%</em>
 								</strong>
 								<span>
-									優於 {rank.beatsPercent.toFixed(1)}% 的{allAttempts ? "出賽成績" : "選手"}
+									優於 {rank.beatsPercent.toFixed(1)}% 的{relay ? "隊伍出賽成績" : allStarts ? "出賽成績" : "選手"}
 								</span>
 							</>
 						) : (
 							<>
 								<UsersThreeIcon size={30} weight="light" />
 								<span>
-									與 {number(cohort.length)} {allAttempts ? "筆成績" : "位選手"}比較
+									與 {number(cohort.length)} {relay ? "隊次" : allStarts ? "筆成績" : "位選手"}比較
 								</span>
 							</>
 						)}
@@ -166,7 +175,7 @@ export default function Distribution({ rows, data, eventLabel, manifest, onAthle
 				<section className="panel">
 					<div className="panel-heading">
 						<h2>歷年成績趨勢</h2>
-						<span className="badge badge-ghost">每年各取個人最佳</span>
+						<span className="badge badge-ghost">{relay ? "每年所有隊伍出賽" : "每年各取個人最佳"}</span>
 					</div>
 					{years.length > 1 ? (
 						<Suspense fallback={<Loading />}>
@@ -179,26 +188,37 @@ export default function Distribution({ rows, data, eventLabel, manifest, onAthle
 				<section className="panel leaderboard">
 					<div className="panel-heading">
 						<h2>最佳成績</h2>
-						<ArrowUpRightIcon size={20} />
+						{!relay ? <ArrowUpRightIcon size={20} /> : null}
 					</div>
-					{sorted.slice(0, 5).map((r, i) => (
-						<button className="leaderboard-row" key={r.id} onClick={() => onAthlete(r.athleteId)}>
-							<span className={`rank-number ${i < 3 ? "podium" : ""}`}>{String(i + 1).padStart(2, "0")}</span>
-							<span className="leader-name">
-								{r.name}
-								<span>{r.team}</span>
-							</span>
-							<strong>
-								{formatResult(r.value, data.unit)}
-								<span>{r.year}</span>
-							</strong>
-						</button>
-					))}
+					{sorted.slice(0, 5).map((r, i) => {
+						const row = (
+							<>
+								<span className={`rank-number ${i < 3 ? "podium" : ""}`}>{String(i + 1).padStart(2, "0")}</span>
+								<span className="leader-name">
+									{r.name}
+									<span>{relay ? r.group : r.team}</span>
+								</span>
+								<strong>
+									{formatResult(r.value, data.unit)}
+									<span>{r.year}</span>
+								</strong>
+							</>
+						);
+						return relay ? (
+							<div className="leaderboard-row" key={r.id}>
+								{row}
+							</div>
+						) : (
+							<button className="leaderboard-row" key={r.id} onClick={() => onAthlete(r.athleteId)}>
+								{row}
+							</button>
+						);
+					})}
 				</section>
 			</div>
 			<section className="panel records-panel">
 				<div className="panel-heading">
-					<h2>{allAttempts ? "出賽成績" : "選手最佳成績"}</h2>
+					<h2>{relay ? "隊伍出賽成績" : allStarts ? "出賽成績" : "選手最佳成績"}</h2>
 					<span>{number(sorted.length)} 筆</span>
 				</div>
 				<ResultsTable rows={sorted} data={data} manifest={manifest} onAthlete={onAthlete} />

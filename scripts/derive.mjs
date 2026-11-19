@@ -5,6 +5,7 @@ import { createGunzip, createGzip, gunzipSync, gzipSync } from "node:zlib";
 import { once } from "node:events";
 import { dataRulesVersion, normalizeEvent, normalizeGroup, inferSpecification } from "../src/events.mjs";
 import { identity, registerIdentity, ambiguousIdentities, registerSourceAlias, sourceNameAlias } from "./identity.mjs";
+import { meetRegistrations, relayRoster, resolveRelayMember, suspectRelayTime } from "./relay.mjs";
 const root = new URL("../public/data/", import.meta.url);
 await mkdir(new URL("events/", root), { recursive: true });
 await mkdir(new URL("athletes/", root), { recursive: true });
@@ -40,6 +41,41 @@ const groupLabels = new Map();
 const mergedAthleteIds = new Map();
 let count = 0,
 	withAge = 0;
+
+function addAthleteResult(r, ident, record, listedName = r.name) {
+	if (!athletes.has(ident.id))
+		athletes.set(ident.id, {
+			id: ident.id,
+			name: ident.displayName,
+			aliases: new Set(),
+			evidence: ident.evidence,
+			gender: r.gender,
+			birthYear: r.birthYear,
+			basis: ident.basis,
+			teams: new Set(),
+			events: new Set(),
+			years: new Set(),
+			count: 0
+		});
+	const a = athletes.get(ident.id);
+	a.aliases.add(r.name);
+	a.aliases.add(listedName);
+	const alias = sourceNameAlias(r);
+	if (alias) a.aliases.add(alias);
+	if (ident.basis === "verified-source-alias" && !a.evidence.length) {
+		a.basis = ident.basis;
+		a.evidence = ident.evidence;
+	}
+	a.teams.add(record.team);
+	a.events.add(record.event);
+	a.years.add(record.year);
+	a.count++;
+	const bucket = ident.id.slice(0, 2);
+	if (!buckets.has(bucket)) buckets.set(bucket, {});
+	buckets.get(bucket)[ident.id] ??= [];
+	buckets.get(bucket)[ident.id].push({ ...record, source: record.source || r.source });
+}
+
 for (const meet of manifest.meets) {
 	let d;
 	try {
@@ -53,21 +89,26 @@ for (const meet of manifest.meets) {
 	meet.status = d.status;
 	meet.errors = d.errors;
 	meet.warnings = d.warnings || [];
+	const meetBibs = meetRegistrations(d.records);
 	for (const r of d.records) {
-		const ident = identity(r, ambiguous, sourceAliases);
 		if (!eventLabels.has(r.event)) eventLabels.set(r.event, normalizeEvent(r.event));
-		const { family: event, unit, specification: stated } = eventLabels.get(r.event);
-		const groupKey = r.group + "|" + r.gender + "|" + event;
-		if (!groupLabels.has(groupKey)) groupLabels.set(groupKey, normalizeGroup(r.group, r.gender, event));
+		const { family, unit, specification: stated } = eventLabels.get(r.event);
+		const relay = family.includes("接力");
+		const mixed = relay && (family.includes("混合") || r.gender === "X");
+		const event = mixed ? family.replace("混合", "") : family;
+		const gender = mixed ? "X" : r.gender;
+		const groupKey = r.group + "|" + gender + "|" + event;
+		if (!groupLabels.has(groupKey)) groupLabels.set(groupKey, normalizeGroup(r.group, gender, event));
 		const group = groupLabels.get(groupKey);
-		const specification = stated ?? inferSpecification(event, r.group, r.gender, r.age);
-		const eventKey = event + "|" + r.gender;
+		const specification = stated ?? inferSpecification(event, r.group, gender, r.age);
+		const eventKey = event + "|" + gender;
 		if (!events.has(eventKey))
 			events.set(eventKey, {
 				id: createHash("sha256").update(eventKey).digest("hex").slice(0, 16),
 				name: event,
-				gender: r.gender,
+				gender,
 				unit,
+				...(relay ? { kind: "relay" } : {}),
 				lowerIsBetter: unit === "s",
 				records: [],
 				sources: {}
@@ -76,55 +117,65 @@ for (const meet of manifest.meets) {
 		const sessionKey = `${r.meetId}:${r.item}:${r.heat || ""}`;
 		e.sources[sessionKey] = r.source;
 		const { fields, source, ...record } = r;
-		record.athleteId = ident.id;
 		record.event = event;
+		record.gender = gender;
 		record.group = group;
-		record.name = ident.displayName;
-		record.kind = unit === "points" ? "combined" : /接力/.test(event) ? "relay" : r.kind;
+		record.kind = unit === "points" ? "combined" : relay ? "relay" : r.kind;
 		if (specification !== null) {
 			record.specification = specification;
 			if (stated === null) record.specificationInferred = true;
 		}
-		if (record.name !== r.name) record.originalName = r.name;
 		e.records.push(record);
 		count++;
 		if (r.age !== null) withAge++;
-		if (record.kind === "relay") continue;
+		if (relay) {
+			const linked = new Set();
+			record.name = r.team || "未提供隊伍";
+			record.athleteId = "";
+			if (suspectRelayTime(event, r.performance, r.value)) {
+				record.value = null;
+				record.timeSuspect = true;
+			}
+			const members = relayRoster(r);
+			if (members.length) {
+				record.relayMembers = members.map(member => {
+					const registration = resolveRelayMember(member, record, meetBibs, ambiguous, sourceAliases);
+					if (!registration) return { name: member.name };
+					const ident = identity(registration, ambiguous, sourceAliases);
+					if (!linked.has(ident.id)) {
+						linked.add(ident.id);
+						const birthYear = registration.birthYear ?? member.birthYear;
+						const age = birthYear ? r.year - birthYear : null;
+						addAthleteResult(
+							registration,
+							ident,
+							{
+								...record,
+								athleteId: ident.id,
+								name: ident.displayName,
+								birthYear,
+								age: age >= 5 && age <= 100 ? age : null,
+								ageBasis: birthYear ? "calendar-year" : null,
+								source
+							},
+							member.name
+						);
+					}
+					return { name: ident.displayName, athleteId: ident.id };
+				});
+			}
+			continue;
+		}
+		const ident = identity(r, ambiguous, sourceAliases);
+		record.athleteId = ident.id;
+		record.name = ident.displayName;
+		if (record.name !== r.name) record.originalName = r.name;
 		if (ident.basis === "verified-source-alias" && r.name !== ident.displayName) {
 			const originalId = identity(r, ambiguous).id;
 			const target = mergedAthleteIds.get(originalId);
 			mergedAthleteIds.set(originalId, target === undefined || target === ident.id ? ident.id : null);
 		}
-		if (!athletes.has(ident.id))
-			athletes.set(ident.id, {
-				id: ident.id,
-				name: ident.displayName,
-				aliases: new Set(),
-				evidence: ident.evidence,
-				gender: r.gender,
-				birthYear: r.birthYear,
-				basis: ident.basis,
-				teams: new Set(),
-				events: new Set(),
-				years: new Set(),
-				count: 0
-			});
-		const a = athletes.get(ident.id);
-		a.aliases.add(r.name);
-		const alias = sourceNameAlias(r);
-		if (alias) a.aliases.add(alias);
-		if (ident.basis === "verified-source-alias" && !a.evidence.length) {
-			a.basis = ident.basis;
-			a.evidence = ident.evidence;
-		}
-		a.teams.add(r.team);
-		a.events.add(event);
-		a.years.add(r.year);
-		a.count++;
-		const bucket = ident.id.slice(0, 2);
-		if (!buckets.has(bucket)) buckets.set(bucket, {});
-		buckets.get(bucket)[ident.id] ??= [];
-		buckets.get(bucket)[ident.id].push({ ...record, source: r.source });
+		addAthleteResult(r, ident, record);
 	}
 }
 const eventIndex = [];
@@ -134,13 +185,13 @@ for (const e of events.values()) {
 	const specifications = new Map();
 	let valid = 0;
 	for (const r of e.records) {
-		const individual = r.value !== null && r.kind === "individual";
-		if (individual) valid++;
+		const comparable = r.value !== null && r.kind === (e.kind || "individual");
+		if (comparable) valid++;
 		if (r.specification === undefined) continue;
 		if (!specifications.has(r.specification)) specifications.set(r.specification, { size: r.specification, count: 0, valid: 0 });
 		const spec = specifications.get(r.specification);
 		spec.count++;
-		if (individual) spec.valid++;
+		if (comparable) spec.valid++;
 	}
 	await writeFile(new URL(`events/${id}.json`, root), JSON.stringify(e));
 	await writeFile(new URL(`events/${id}.json.gz`, root), gzipSync(JSON.stringify(e)));
@@ -148,6 +199,7 @@ for (const e of events.values()) {
 		id,
 		name: e.name,
 		gender: e.gender,
+		...(e.kind ? { kind: e.kind } : {}),
 		unit: e.unit,
 		lowerIsBetter: e.lowerIsBetter,
 		count: e.records.length,

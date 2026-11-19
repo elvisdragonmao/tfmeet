@@ -81,7 +81,7 @@ export async function loadPredictionData(root = snapshotRoot) {
 	const events = [];
 	const fingerprint = createHash("sha256");
 	for (const info of manifest.events) {
-		if (!info.valid || !["M", "F"].includes(info.gender) || !["m", "s"].includes(info.unit)) continue;
+		if (!info.valid || info.kind === "relay" || !["M", "F"].includes(info.gender) || !["m", "s"].includes(info.unit)) continue;
 		const raw = gunzipSync(await readFile(new URL(`events/${info.id}.json.gz`, root)));
 		fingerprint.update(raw);
 		const data = JSON.parse(raw);

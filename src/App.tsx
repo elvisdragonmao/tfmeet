@@ -31,14 +31,14 @@ const pages = [
 ];
 const initial = new URLSearchParams(location.search);
 const eventOrder = new Intl.Collator("zh-TW", { numeric: true });
-type EventChoice = { label: string; name: string; size?: number; genders: string[] };
+type EventChoice = { label: string; name: string; size?: number; kind?: "relay"; genders: string[] };
 type EventGroup = { name: string; choices: EventChoice[] };
 
 function eventOptions(manifest: Manifest | null) {
 	const families = new Map<string, { all: EventChoice; sizes: Map<number, EventChoice> }>();
 	for (const event of manifest?.events || []) {
-		if (!event.valid || !["M", "F"].includes(event.gender)) continue;
-		if (!families.has(event.name)) families.set(event.name, { all: { label: event.name, name: event.name, genders: [] }, sizes: new Map() });
+		if (!event.valid || (!["M", "F"].includes(event.gender) && !(event.kind === "relay" && event.gender === "X"))) continue;
+		if (!families.has(event.name)) families.set(event.name, { all: { label: event.name, name: event.name, kind: event.kind, genders: [] }, sizes: new Map() });
 		const family = families.get(event.name)!;
 		family.all.genders.push(event.gender);
 		for (const { size, valid } of event.specifications || []) {
@@ -49,13 +49,15 @@ function eventOptions(manifest: Manifest | null) {
 	}
 	const track: EventGroup = { name: "田徑", choices: [] };
 	const walks: EventGroup = { name: "競走", choices: [] };
+	const relays: EventGroup = { name: "接力", choices: [] };
 	const equipment: EventGroup[] = [];
 	for (const { all, sizes } of [...families.values()].sort((a, b) => eventOrder.compare(a.all.name, b.all.name))) {
-		if (all.name.endsWith("競走")) walks.choices.push(all);
+		if (all.kind === "relay") relays.choices.push(all);
+		else if (all.name.endsWith("競走")) walks.choices.push(all);
 		else if (sizes.size === 0) track.choices.push(all);
 		else equipment.push({ name: all.name, choices: [all, ...[...sizes.values()].sort((a, b) => a.size! - b.size!)] });
 	}
-	return [track, ...equipment, walks].filter(group => group.choices.length);
+	return [track, ...equipment, relays, walks].filter(group => group.choices.length);
 }
 
 function eventOption(choice: EventChoice) {
@@ -75,9 +77,11 @@ export default function App() {
 	const [eventError, setEventError] = useState("");
 	const [retry, setRetry] = useState(0);
 	const [page, setPage] = useState(pages.some(p => p.id === initial.get("view")) ? initial.get("view")! : "distribution");
-	const [eventName, setEventName] = useState(initial.get("event") || "100M");
-	const [gender, setGender] = useState(initial.get("gender") || "M");
-	const [group, setGroup] = useState(() => normalizeGroup(initial.get("group") || "", initial.get("gender") || "M", normalizeEvent(eventName).family));
+	const initialEvent = initial.get("event") || "100M";
+	const legacyMixed = normalizeEvent(initialEvent).family === "4×400M混合接力";
+	const [eventName, setEventName] = useState(legacyMixed ? "4×400M接力" : initialEvent);
+	const [gender, setGender] = useState(legacyMixed ? "X" : initial.get("gender") || "M");
+	const [group, setGroup] = useState(() => normalizeGroup(initial.get("group") || "", gender, normalizeEvent(eventName).family));
 	const [age, setAge] = useState(initial.get("age") || "");
 	const [wind, setWind] = useState(initial.get("wind") || "all");
 	const [round, setRound] = useState(initial.get("round") || "");
@@ -115,14 +119,18 @@ export default function App() {
 		choices.find(choice => choice.label === legacy.family) ||
 		choices.find(choice => choice.label === "100M") ||
 		choices[0];
-	const selected = chosen?.genders.includes(gender) ? manifest?.events.find(e => e.name === chosen.name && e.gender === gender) : undefined;
+	const relay = chosen?.kind === "relay";
+	const mixedOnly = relay && chosen.genders.length === 1 && chosen.genders[0] === "X";
+	const currentGender = mixedOnly ? "X" : gender === "X" && !chosen?.genders.includes("X") ? chosen?.genders.find(g => g !== "X") || "M" : gender;
+	const genderChoices = mixedOnly ? ["X"] : relay && chosen.genders.includes("X") ? ["M", "F", "X"] : ["M", "F"];
+	const selected = chosen?.genders.includes(currentGender) ? manifest?.events.find(e => e.name === chosen.name && e.gender === currentGender) : undefined;
 	const selectedId = selected?.id;
 	const currentData = data?.id === selectedId ? data : null;
 	useEffect(() => {
 		let live = true;
 		setData(null);
 		setEventError("");
-		if (!selectedId || page === "athletes" || page === "archive") return;
+		if (!selectedId || page === "athletes" || page === "archive" || (relay && page === "age")) return;
 		loadEvent(selectedId)
 			.then(d => {
 				if (live) setData(d);
@@ -133,11 +141,12 @@ export default function App() {
 		return () => {
 			live = false;
 		};
-	}, [selectedId, page, retry]);
-	const filters = useMemo<Filters>(() => ({ gender, group, age, wind, round, from, to, team }), [gender, group, age, wind, round, from, to, team]);
+	}, [selectedId, page, relay, retry]);
+	const filters = useMemo<Filters>(() => ({ gender: currentGender, group, age, wind, round, from, to, team }), [currentGender, group, age, wind, round, from, to, team]);
 	const size = chosen?.size;
 	const records = useMemo(() => (size === undefined ? currentData?.records || [] : currentData?.records.filter(r => r.specification === size) || []), [currentData, size]);
-	const rows = useMemo(() => comparePool(records, filters), [records, filters]);
+	const kind = relay ? "relay" : "individual";
+	const rows = useMemo(() => comparePool(records, filters, kind), [records, filters, kind]);
 	useEffect(() => {
 		const q = new URLSearchParams();
 		for (const name of ["score", "attempts"]) {
@@ -146,17 +155,17 @@ export default function App() {
 		}
 		if (page !== "distribution") q.set("view", page);
 		q.set("event", chosen?.label || eventName);
-		q.set("gender", gender);
+		q.set("gender", chosen ? currentGender : gender);
 		if (group) q.set("group", group);
 		if (team) q.set("team", team);
-		if (age) q.set("age", age);
-		if (wind !== "all") q.set("wind", wind);
+		if (!relay && age) q.set("age", age);
+		if (!relay && wind !== "all") q.set("wind", wind);
 		if (round) q.set("round", round);
 		q.set("from", String(from));
 		q.set("to", String(to));
 		if (page === "athletes" && canonicalAthlete) q.set("athlete", canonicalAthlete);
 		history.replaceState(null, "", `?${q}`);
-	}, [page, chosen?.label, eventName, gender, group, age, wind, round, from, to, team, canonicalAthlete]);
+	}, [page, chosen?.label, eventName, currentGender, gender, relay, group, age, wind, round, from, to, team, canonicalAthlete]);
 	const openAthlete = (id: string) => {
 		setSelectedAthlete(id);
 		setPage("athletes");
@@ -166,11 +175,12 @@ export default function App() {
 		setPage(id);
 		window.scrollTo({ top: 0, behavior: "instant" });
 	}
-	const groups = useMemo(() => [...new Set(records.filter(r => r.kind === "individual" && r.group).map(r => r.group))].sort((a, b) => eventOrder.compare(a, b)), [records]);
+	const groups = useMemo(() => [...new Set(records.filter(r => r.kind === kind && r.group).map(r => r.group))].sort((a, b) => eventOrder.compare(a, b)), [records, kind]);
 	const allYears = [...new Set(manifest?.meets.map(m => m.year))].sort((a, b) => a - b);
 	const years = [...new Set([...allYears, from, to])].sort((a, b) => a - b);
 	const ages = useMemo(() => [...new Set(records.map(r => r.age).filter((a): a is number => a !== null))].sort((a, b) => a - b), [records]);
-	const rounds = useMemo(() => [...new Set(records.filter(r => r.kind === "individual").map(r => r.round))], [records]);
+	const rounds = useMemo(() => [...new Set(records.filter(r => r.kind === kind && r.round).map(r => r.round))], [records, kind]);
+	const filterCount = [!relay && age, round, !relay && wind !== "all", team].filter(Boolean).length;
 	async function share() {
 		try {
 			await navigator.clipboard.writeText(location.href);
@@ -278,7 +288,10 @@ export default function App() {
 														value={chosen?.label || ""}
 														onChange={e => {
 															setEventName(e.target.value);
-															if (choices.find(choice => choice.label === e.target.value)?.name !== chosen?.name) setGroup("");
+															const next = choices.find(choice => choice.label === e.target.value);
+															if (next?.name !== chosen?.name) setGroup("");
+															if (next?.genders.length === 1 && next.genders[0] === "X") setGender("X");
+															else if (currentGender === "X") setGender(next?.genders.includes("X") ? "X" : next?.genders[0] || "M");
 															setAge("");
 															setRound("");
 														}}
@@ -293,15 +306,15 @@ export default function App() {
 												<fieldset className="gender-field">
 													<legend>性別</legend>
 													<div className="segmented">
-														{["M", "F"].map(g => (
+														{genderChoices.map(g => (
 															<button
 																key={g}
-																className={gender === g ? "active" : ""}
-																aria-pressed={gender === g}
+																className={currentGender === g ? "active" : ""}
+																aria-pressed={currentGender === g}
 																onClick={() => {
-																	if (g === gender) return;
+																	if (g === currentGender) return;
 																	setGender(g);
-																	setGroup(current => normalizeGroup(current.replace(/男子|女子/g, genderName(g)), g, chosen?.name));
+																	setGroup(current => (relay ? "" : normalizeGroup(current.replace(/男子|女子/g, genderName(g)), g, chosen?.name)));
 																	setAge("");
 																	setRound("");
 																}}
@@ -355,22 +368,24 @@ export default function App() {
 												</div>
 												<button className={`btn advanced-button ${advanced ? "is-active" : ""}`} onClick={() => setAdvanced(!advanced)} aria-expanded={advanced}>
 													<FunnelSimpleIcon size={19} />
-													篩選{age || round || wind !== "all" || team ? <span className="filter-count">{[age, round, wind !== "all", team].filter(Boolean).length}</span> : null}
+													篩選{filterCount ? <span className="filter-count">{filterCount}</span> : null}
 												</button>
 											</div>
 											{advanced ? (
 												<div className="advanced-filters">
-													<label>
-														當年年齡
-														<select className="select" value={age} onChange={e => setAge(e.target.value)}>
-															<option value="">所有年齡（含未知）</option>
-															{ages.map(a => (
-																<option key={a} value={a}>
-																	{a} 歲
-																</option>
-															))}
-														</select>
-													</label>
+													{!relay ? (
+														<label>
+															當年年齡
+															<select className="select" value={age} onChange={e => setAge(e.target.value)}>
+																<option value="">所有年齡（含未知）</option>
+																{ages.map(a => (
+																	<option key={a} value={a}>
+																		{a} 歲
+																	</option>
+																))}
+															</select>
+														</label>
+													) : null}
 													<label>
 														賽別
 														<select className="select" value={round} onChange={e => setRound(e.target.value)}>
@@ -380,13 +395,15 @@ export default function App() {
 															))}
 														</select>
 													</label>
-													<label>
-														風速
-														<select className="select" value={wind} onChange={e => setWind(e.target.value)}>
-															<option value="all">全部（含未知）</option>
-															<option value="legal">已知風速 ≤ +2.0</option>
-														</select>
-													</label>
+													{!relay ? (
+														<label>
+															風速
+															<select className="select" value={wind} onChange={e => setWind(e.target.value)}>
+																<option value="all">全部（含未知）</option>
+																<option value="legal">已知風速 ≤ +2.0</option>
+															</select>
+														</label>
+													) : null}
 													<label>
 														學校／單位
 														<input className="input" value={team} placeholder="輸入名稱" onChange={e => setTeam(e.target.value)} />
@@ -406,9 +423,16 @@ export default function App() {
 												</div>
 											) : null}
 										</section>
-										{!selected ? (
+										{relay && page === "age" ? (
 											<Empty>
-												沒有資料。{genderName(gender)}在「{chosen?.label || eventName}」沒有可分析的成績。
+												接力以隊伍為單位。
+												<button className="btn btn-sm btn-ghost" onClick={() => changePage("distribution")}>
+													查看隊伍成績分布
+												</button>
+											</Empty>
+										) : !selected ? (
+											<Empty>
+												沒有資料。{genderName(currentGender)}在「{chosen?.label || eventName}」沒有可分析的成績。
 											</Empty>
 										) : eventError ? (
 											<ErrorNotice error={eventError} retry={() => setRetry(retry + 1)} />
@@ -416,7 +440,7 @@ export default function App() {
 											<Loading />
 										) : !rows.length ? (
 											<Empty>
-												沒有資料。{group || genderName(gender)}在「{chosen?.label}」沒有符合目前篩選條件的成績。
+												沒有資料。{group || genderName(currentGender)}在「{chosen?.label}」沒有符合目前篩選條件的成績。
 											</Empty>
 										) : (
 											<Suspense fallback={<Loading />}>
@@ -432,7 +456,16 @@ export default function App() {
 									</>
 								) : (
 									<Suspense fallback={<Loading />}>
-										{page === "athletes" ? <Athletes manifest={manifest} selectedId={canonicalAthlete} onSelect={setSelectedAthlete} /> : <Archive manifest={manifest} />}
+										{page === "athletes" ? (
+											<Athletes
+												manifest={manifest}
+												selectedId={canonicalAthlete}
+												initialEventLabel={relay ? `${chosen.name}${currentGender === "X" ? "（混合）" : ""}` : undefined}
+												onSelect={setSelectedAthlete}
+											/>
+										) : (
+											<Archive manifest={manifest} />
+										)}
 									</Suspense>
 								)}
 								<Methodology />

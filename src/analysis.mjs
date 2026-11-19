@@ -28,7 +28,8 @@ export function bestPerAthlete(records, lower = true) {
 export function uniqueStarts(records) {
 	const seen = new Set();
 	return records.filter(r => {
-		const key = JSON.stringify([r.meetId, r.item, r.date || r.year, r.heat || "", r.bib || r.athleteId, r.value === null ? r.performance : r.value, r.wind]);
+		const entrant = r.kind === "relay" ? [r.team || r.id, r.bib] : r.bib || r.athleteId;
+		const key = JSON.stringify([r.meetId, r.item, r.date || r.year, r.heat || "", entrant, r.value === null ? r.performance : r.value, r.wind]);
 		if (seen.has(key)) return false;
 		seen.add(key);
 		return true;
@@ -45,21 +46,21 @@ export function canReviewAthletesTogether(first, second) {
 		!separatedAthleteBases.has(second.basis)
 	);
 }
-export function comparePool(records, filters) {
+export function comparePool(records, filters, kind = "individual") {
 	const { gender, group, from, to, age, wind, round, team } = filters;
 	return uniqueStarts(
 		records.filter(
 			r =>
 				r.value !== null &&
-				r.kind === "individual" &&
+				r.kind === kind &&
 				(!gender || r.gender === gender) &&
 				(!group || r.group === group) &&
 				r.year >= from &&
 				r.year <= to &&
-				(!age || r.age === Number(age)) &&
+				(kind === "relay" || !age || r.age === Number(age)) &&
 				(!team || r.team.includes(team)) &&
 				(!round || r.round === round) &&
-				(wind !== "legal" || (r.wind !== null && r.wind <= 2))
+				(kind === "relay" || wind !== "legal" || (r.wind !== null && r.wind <= 2))
 		)
 	);
 }
@@ -74,7 +75,7 @@ export function threshold(records, topPercent, lower = true) {
 	const values = records.map(r => r.value).sort((a, b) => a - b);
 	return quantile(values, lower ? topPercent / 100 : 1 - topPercent / 100);
 }
-export function groupStats(records, key, lower = true) {
+export function groupStats(records, key, lower = true, allStarts = false) {
 	const groups = new Map();
 	for (const r of records) {
 		const k = r[key];
@@ -85,11 +86,10 @@ export function groupStats(records, key, lower = true) {
 	return [...groups]
 		.sort(([a], [b]) => Number(a) - Number(b))
 		.map(([key, rs]) => {
-			const best = bestPerAthlete(rs, lower);
-			const values = best.map(r => r.value).sort((a, b) => (lower ? a - b : b - a));
+			const values = (allStarts ? rs : bestPerAthlete(rs, lower)).map(r => r.value).sort((a, b) => (lower ? a - b : b - a));
 			return {
 				key,
-				n: best.length,
+				n: values.length,
 				median: quantile(values, 0.5),
 				top10: quantile(values, 0.1),
 				top25: quantile(values, 0.25),

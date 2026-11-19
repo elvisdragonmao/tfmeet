@@ -25,11 +25,14 @@ export interface Result {
 	heat: string | null;
 	wind: number | null;
 	source?: string;
+	relayMembers?: { name: string; athleteId?: string }[];
+	timeSuspect?: boolean;
 }
 export interface EventInfo {
 	id: string;
 	name: string;
 	gender: string;
+	kind?: "relay";
 	unit: string;
 	lowerIsBetter: boolean;
 	count: number;
@@ -37,7 +40,7 @@ export interface EventInfo {
 	years: number[];
 	specifications?: { size: number; count: number; valid: number }[];
 }
-export interface EventData extends Pick<EventInfo, "id" | "name" | "gender" | "unit" | "lowerIsBetter"> {
+export interface EventData extends Pick<EventInfo, "id" | "name" | "gender" | "kind" | "unit" | "lowerIsBetter"> {
 	records: Result[];
 	sources: Record<string, string>;
 }

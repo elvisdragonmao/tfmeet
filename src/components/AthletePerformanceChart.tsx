@@ -31,7 +31,8 @@ export default function AthletePerformanceChart({
 	const [loadFailed, setLoadFailed] = useState(false);
 	const [retry, setRetry] = useState(0);
 	const currentYear = Number(yearInTaiwan.format(new Date()));
-	const isIndividual = Boolean(event?.valid && !eventLabel?.endsWith("（全能分項）"));
+	const relay = event?.kind === "relay";
+	const isIndividual = Boolean(event?.valid && !relay && !eventLabel?.endsWith("（全能分項）"));
 	const seasons = useMemo(
 		() => (isIndividual && event ? athletePredictionSeasons(athlete, event.name, event.unit, records).filter(season => season.year <= currentYear) : []),
 		[athlete, currentYear, event, isIndividual, records]
@@ -101,7 +102,7 @@ export default function AthletePerformanceChart({
 	const end = Math.max(...actual.keys(), ...estimates.map(point => point[axis]));
 	const ticks = Number.isFinite(start) ? Array.from({ length: end - start + 1 }, (_, i) => start + i) : [];
 	const unit = unitName(event?.unit ?? "s");
-	const historicalName = axis === "year" ? "年度最佳成績" : "各年齡最佳成績";
+	const historicalName = `${axis === "year" ? "年度" : "各年齡"}最佳${relay ? "隊伍" : ""}成績`;
 	const forecastName = "成績推估";
 	const chart = {
 		grid: { left: 65, right: 28, top: 25, bottom: segments.size ? 62 : 45 },
@@ -146,12 +147,14 @@ export default function AthletePerformanceChart({
 		<section className="panel">
 			<div className="panel-heading">
 				<h2>{eventLabel ? `${eventLabel}歷屆成績` : "歷屆成績"}</h2>
-				<span>每{axis === "age" ? "個年齡" : "年"}最佳</span>
+				<span>
+					每{axis === "age" ? "個年齡" : "年"}最佳{relay ? "隊伍成績" : ""}
+				</span>
 			</div>
 			{stats.length ? (
 				<Chart option={chart} height={330} label={`${athlete.name}${eventLabel ?? ""}歷屆成績${estimates.length ? "與虛線推估" : ""}`} />
 			) : (
-				<Empty>{axis === "age" ? "沒有可確認出生年的成績。" : "沒有有效的個人成績。"}</Empty>
+				<Empty>{axis === "age" ? "沒有可確認出生年的成績。" : relay ? "沒有可繪圖的隊伍成績。" : "沒有有效的個人成績。"}</Empty>
 			)}
 			{estimates.length ? (
 				<div className="athlete-forecast-notes">

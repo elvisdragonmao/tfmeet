@@ -5,6 +5,8 @@ import { bestPerAthlete, canReviewAthletesTogether, formatResult, uniqueStarts }
 import type { Athlete, Manifest, Result } from "../types";
 import { Empty, ErrorNotice, genderName, Loading, number, ResultsTable, Stat, unitName } from "./Shared";
 const AthletePerformanceChart = lazy(() => import("./AthletePerformanceChart"));
+const eventLabel = (r: Result) =>
+	r.kind === "combined" ? `${r.event} · ${r.group}` : r.kind === "combined-component" ? `${r.event}（全能分項）` : r.kind === "relay" && r.gender === "X" ? `${r.event}（混合）` : r.event;
 const identityNotes: Record<string, string> = {
 	"verified-override": "已依公開資料核對身分與姓名。",
 	"verified-source-alias": "以來源成績列的中英文對照與出生年核對。國際賽紀錄另核對代表隊及比賽項目。",
@@ -14,7 +16,7 @@ const identityNotes: Record<string, string> = {
 	"name-gender-birth-year": "以同名、同性別、同出生年連結，仍可核對學校與賽事。",
 	"name-gender-team": "以同名、同性別、同一單位連結；轉學可能分成多筆。"
 };
-export default function Athletes({ manifest, selectedId, onSelect }: { manifest: Manifest; selectedId: string; onSelect: (id: string) => void }) {
+export default function Athletes({ manifest, selectedId, initialEventLabel, onSelect }: { manifest: Manifest; selectedId: string; initialEventLabel?: string; onSelect: (id: string) => void }) {
 	const [index, setIndex] = useState<Athlete[] | null>(null);
 	const [query, setQuery] = useState("");
 	const search = useDeferredValue(query.trim());
@@ -22,7 +24,7 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 	const [records, setRecords] = useState<Result[]>([]);
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
-	const [event, setEvent] = useState("");
+	const [event, setEvent] = useState(initialEventLabel ?? "");
 	const [axis, setAxis] = useState<"year" | "age">("year");
 	useEffect(() => {
 		let live = true;
@@ -70,14 +72,21 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 		() => index?.filter(a => !search || `${a.name} ${(a.aliases || []).join(" ")} ${a.teams.join(" ")} ${a.birthYear || ""}`.toLowerCase().includes(search.toLowerCase())) || [],
 		[index, search]
 	);
-	const eventLabel = (r: Result) => (r.kind === "combined" ? `${r.event} · ${r.group}` : r.kind === "combined-component" ? `${r.event}（全能分項）` : r.event);
-	const available = [...new Set(records.filter(r => r.kind !== "relay").map(eventLabel))].sort();
-	const currentEvent = available.includes(event) ? event : available.includes("100M") ? "100M" : available[0];
+	const { available, individual } = useMemo(
+		() => ({
+			available: [...new Set(records.map(eventLabel))].sort(),
+			individual: [...new Set(records.filter(r => r.kind !== "relay").map(eventLabel))].sort()
+		}),
+		[records]
+	);
+	const currentEvent = available.includes(event) ? event : individual.includes("100M") ? "100M" : individual[0] || available[0];
 	const filtered = useMemo(
-		() => uniqueStarts(records.filter(r => eventLabel(r) === currentEvent && r.kind !== "relay")).sort((a, b) => (a.date || String(a.year)).localeCompare(b.date || String(b.year))),
+		() => uniqueStarts(records.filter(r => eventLabel(r) === currentEvent)).sort((a, b) => (a.date || String(a.year)).localeCompare(b.date || String(b.year))),
 		[records, currentEvent]
 	);
-	const info = manifest.events.find(e => e.name === filtered[0]?.event && e.gender === athlete?.gender);
+	const first = filtered[0];
+	const relay = first?.kind === "relay";
+	const info = manifest.events.find(e => e.name === first?.event && e.gender === first.gender);
 	const valid = filtered.filter(r => r.value !== null);
 	const best = bestPerAthlete(valid, info?.lowerIsBetter ?? true).sort((a, b) => ((info?.lowerIsBetter ?? true) ? a.value! - b.value! : b.value! - a.value!))[0];
 	return (
@@ -194,13 +203,15 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 								</button>
 							</div>
 						</div>
-						{filtered[0]?.kind === "combined" ? (
+						{relay ? (
+							<div className="context-note">接力紀錄來自原始參賽名單，成績為全隊完賽時間。原始來源可在逐場成績查看。</div>
+						) : first?.kind === "combined" ? (
 							<div className="context-note">全能總分依組別分開顯示，不同組別可能使用不同分項與計分方式。</div>
-						) : filtered[0]?.kind === "combined-component" ? (
+						) : first?.kind === "combined-component" ? (
 							<div className="context-note">目前顯示全能運動的分項成績，不併入一般單項的百分位。</div>
 						) : null}
 						<div className="stats-grid athlete-stats">
-							<Stat label="個人最佳" value={formatResult(best?.value, info?.unit)} unit={unitName(info?.unit || "s")} detail={best?.date || "尚無有效成績"} />
+							<Stat label={relay ? "代表隊伍最佳" : "個人最佳"} value={formatResult(best?.value, info?.unit)} unit={unitName(info?.unit || "s")} detail={best?.date || "尚無有效成績"} />
 							<Stat label="出賽紀錄" value={number(filtered.length)} unit="筆" detail={`${new Set(filtered.map(r => r.meetId)).size} 場賽事`} />
 							<Stat label="紀錄年份" value={filtered.length ? `${filtered[0].year}–${filtered.at(-1)!.year}` : "—"} detail="僅代表資料庫可查期間" />
 						</div>
@@ -241,7 +252,7 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 							<div className="panel-heading">
 								<h2>逐場成績</h2>
 							</div>
-							<ResultsTable rows={filtered} manifest={manifest} />
+							<ResultsTable key={currentEvent} rows={filtered} manifest={manifest} />
 						</section>
 					</>
 				) : null}

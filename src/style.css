@@ -409,6 +409,8 @@ main {
 }
 .gender-field .segmented button {
 	flex: 1;
+	min-width: 0;
+	padding-inline: 4px;
 }
 .segmented button.active {
 	background: #fff;
@@ -711,7 +713,7 @@ main {
 	border: 0;
 	padding: 13px 23px;
 }
-.leaderboard-row:hover {
+button.leaderboard-row:hover {
 	background: #f7f9ff;
 }
 .rank-number {
@@ -813,6 +815,10 @@ main {
 }
 .results-table td {
 	font-size: 11px;
+}
+.results-table .relay-roster {
+	max-width: 290px;
+	line-height: 1.6;
 }
 .athlete-link {
 	background: none;
@@ -1949,12 +1955,9 @@ footer > a {
 	.results-table {
 		min-width: 0;
 	}
-	.results-table th:nth-child(3),
-	.results-table td:nth-child(3),
-	.results-table th:nth-child(4),
-	.results-table td:nth-child(4),
-	.results-table th:nth-child(6),
-	.results-table td:nth-child(6) {
+	.results-table .result-age,
+	.results-table .result-group,
+	.results-table .result-wind {
 		display: none;
 	}
 	.results-table th,
@@ -1982,6 +1985,9 @@ footer > a {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.results-table .relay-roster {
+		white-space: normal;
 	}
 	.results-table .truncate-title {
 		max-width: 75px;

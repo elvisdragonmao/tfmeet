@@ -60,18 +60,19 @@ export function ResultsTable({ rows, data, manifest, onAthlete }: { rows: Result
 	const size = 15;
 	const current = Math.min(page, Math.max(0, Math.ceil(rows.length / size) - 1));
 	const meets = new Map(manifest.meets.map(m => [m.id, m]));
+	const relay = data?.kind === "relay" || rows[0]?.kind === "relay";
 	return (
 		<>
 			<div className="table-scroll">
 				<table className="table results-table">
 					<thead>
 						<tr>
-							<th>選手／單位</th>
+							<th>{relay ? "隊伍" : "選手／單位"}</th>
 							<th>比賽日期</th>
-							<th>當年年齡</th>
-							<th>組別／賽別</th>
-							<th className="numeric">成績</th>
-							<th>風速</th>
+							{data?.kind !== "relay" ? <th className="result-age">當年年齡</th> : null}
+							<th className="result-group">組別／賽別</th>
+							<th className="numeric">{relay ? "隊伍成績" : "成績"}</th>
+							{!relay ? <th className="result-wind">風速</th> : null}
 							<th>
 								<span className="sr-only">來源</span>
 							</th>
@@ -81,17 +82,41 @@ export function ResultsTable({ rows, data, manifest, onAthlete }: { rows: Result
 						{rows.slice(current * size, (current + 1) * size).map(r => (
 							<tr key={r.id}>
 								<td>
-									<button className="athlete-link" onClick={() => onAthlete?.(r.athleteId)} disabled={!onAthlete}>
-										{r.name}
-									</button>
-									<div className="table-secondary">{r.team}</div>
+									{relay ? (
+										<>
+											<strong>{r.team || "未提供隊伍"}</strong>
+											{r.relayMembers?.length ? (
+												<div className="table-secondary relay-roster">
+													{r.relayMembers.map((member, i) => (
+														<span key={i}>
+															{i > 0 ? "、" : ""}
+															{onAthlete && member.athleteId ? (
+																<button className="athlete-link" onClick={() => onAthlete(member.athleteId!)}>
+																	{member.name}
+																</button>
+															) : (
+																member.name
+															)}
+														</span>
+													))}
+												</div>
+											) : null}
+										</>
+									) : (
+										<>
+											<button className="athlete-link" onClick={() => onAthlete?.(r.athleteId)} disabled={!onAthlete}>
+												{r.name}
+											</button>
+											<div className="table-secondary">{r.team}</div>
+										</>
+									)}
 								</td>
 								<td title={meets.get(r.meetId)?.name}>
 									{r.date || r.year}
 									<div className="table-secondary truncate-title">{meets.get(r.meetId)?.category || meets.get(r.meetId)?.name}</div>
 								</td>
-								<td>{r.age !== null ? `${r.age} 歲` : "未提供"}</td>
-								<td>
+								{data?.kind !== "relay" ? <td className="result-age">{r.age !== null ? `${r.age} 歲` : "未提供"}</td> : null}
+								<td className="result-group">
 									{r.group}
 									<div className="table-secondary">{r.round}</div>
 									{r.specification !== undefined ? (
@@ -101,11 +126,14 @@ export function ResultsTable({ rows, data, manifest, onAthlete }: { rows: Result
 										</div>
 									) : null}
 								</td>
-								<td className="numeric result-value">{r.performance || "—"}</td>
-								<td>{r.wind !== null ? `${r.wind > 0 ? "+" : ""}${r.wind.toFixed(1)}` : "—"}</td>
+								<td className="numeric result-value">
+									{r.performance || "—"}
+									{r.timeSuspect ? <div className="table-secondary">計時待核對</div> : null}
+								</td>
+								{!relay ? <td className="result-wind">{r.wind !== null ? `${r.wind > 0 ? "+" : ""}${r.wind.toFixed(1)}` : "—"}</td> : null}
 								<td>
 									<a
-										aria-label={`查看${r.name}原始成績`}
+										aria-label={`查看${relay ? r.team || "隊伍" : r.name}原始成績`}
 										title="原始成績"
 										href={r.source || data?.sources[`${r.meetId}:${r.item}:${r.heat || ""}`] || meets.get(r.meetId)?.url}
 										target="_blank"
@@ -160,6 +188,7 @@ export function Methodology() {
 					+2.0」會排除沒有風速的成績。
 				</p>
 				<p>選手索引依姓名、性別、出生年與單位核對。來源有中英文對照時可合併；出生年不同或來源已區分的同名選手會分開。仍待核對的候選身分可以在選手頁合併檢視。原始欄位與未完賽成績保留於賽事 JSON。</p>
+				<p>接力分布按隊伍出賽計算，預賽與決賽各計一筆。能核對名單的紀錄會列入選手歷程，顯示隊伍完賽時間。來源計時有疑義的紀錄保留原值，暫不納入分布或歷屆成績圖。</p>
 			</div>
 		</details>
 	);

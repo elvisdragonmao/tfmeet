@@ -38,24 +38,34 @@ for (const meta of m.meets) {
 assert.equal(count, m.recordCount);
 const indexCount = m.events.reduce((n, e) => n + e.count, 0);
 assert.equal(indexCount, count);
+const relayLinks = new Map();
 if (m.dataRulesVersion) {
 	for (const event of m.events) {
 		const data = JSON.parse(gunzipSync(await readFile(new URL(`events/${event.id}.json.gz`, root))));
 		assert.equal(data.name, event.name);
 		assert.equal(data.gender, event.gender);
+		assert.equal(data.kind, event.kind);
 		assert.equal(data.records.length, event.count);
 		const sizes = new Map(event.specifications.map(spec => [spec.size, { count: 0, valid: 0 }]));
 		let valid = 0;
 		for (const r of data.records) {
 			assert.equal(r.event, event.name);
 			assert.equal(r.gender, event.gender);
-			const individual = r.kind === "individual" && r.value !== null;
-			if (individual) valid++;
+			const comparable = r.kind === (event.kind || "individual") && r.value !== null;
+			if (comparable) valid++;
+			if (event.kind === "relay") {
+				assert.equal(r.kind, "relay");
+				assert.equal(r.athleteId, "", "A relay event row must describe a team");
+				assert.equal(r.age, null);
+				for (const id of new Set(r.relayMembers?.flatMap(member => (member.athleteId ? [member.athleteId] : [])))) {
+					relayLinks.set(`${id}:${r.id}`, [r.team, r.event, r.gender, r.value]);
+				}
+			}
 			if (r.specification !== undefined) {
 				const size = sizes.get(r.specification);
 				assert.ok(size, `Missing specification ${r.specification} in ${event.name}`);
 				size.count++;
-				if (individual) size.valid++;
+				if (comparable) size.valid++;
 			}
 		}
 		assert.equal(valid, event.valid);
@@ -68,6 +78,22 @@ if (m.athleteRedirects) {
 	for (const [previous, canonical] of Object.entries(m.athleteRedirects)) {
 		assert.ok(!ids.has(previous), `Redirect would hide an active athlete ${previous}`);
 		assert.ok(ids.has(canonical), `Missing redirect target ${canonical}`);
+	}
+	if (m.events.some(event => event.kind === "relay")) {
+		assert.ok(relayLinks.size > 0, "No teams linked to athlete histories");
+		for (const prefix of new Set(athletes.map(a => a.id.slice(0, 2)))) {
+			const bucket = JSON.parse(gunzipSync(await readFile(new URL(`athletes/${prefix}.json.gz`, root))));
+			for (const [id, records] of Object.entries(bucket)) {
+				for (const row of records.filter(r => r.kind === "relay")) {
+					const key = `${id}:${row.id}`;
+					assert.equal(row.athleteId, id);
+					assert.ok(ids.has(id), "Linked athlete is missing from the index");
+					assert.deepEqual([row.team, row.event, row.gender, row.value], relayLinks.get(key), "Relay history must match its team result");
+					relayLinks.delete(key);
+				}
+			}
+		}
+		assert.equal(relayLinks.size, 0, "Missing relay results in athlete histories");
 	}
 }
 await stat(new URL("archive.json.gz", root));
