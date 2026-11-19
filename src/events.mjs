@@ -32,7 +32,7 @@ const hurdles = {
 	"400M跨欄": { 國中: [838, 762], 高中: [914, 762], 成年: [914, 762] }
 };
 
-export const dataRulesVersion = 7;
+export const dataRulesVersion = 8;
 
 export function normalizeSpecification(family, size) {
 	return family === "鉛球" && size === 2730 ? 2720 : size;
@@ -97,7 +97,7 @@ export function normalizeGroup(group, gender, event) {
 	const raw = cleanGroup(group);
 	const category = groupCategory(raw);
 	const sex = gender === "M" ? "男子" : gender === "F" ? "女子" : gender === "X" ? "混合" : "";
-	const junior = event === "60M" ? "國小" : "國中";
+	const junior = event === "60M" || event === "4×200M接力" ? "國小" : "國中";
 	if (/國小|小學|[男女]童|^小[男女]|^[男女]生[甲乙]?$/.test(category)) return `國小${sex}`;
 	if (/國中|初中|^國[男女]/.test(category)) return junior + sex;
 	if (/高中|高職|^高[男女]|^(?:[台臺]日(?:青[男女]|[男女]青)|亞青少[男女](?:選拔)?)$/.test(category)) return `高中${sex}`;
