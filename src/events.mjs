@@ -32,7 +32,7 @@ const hurdles = {
 	"400M跨欄": { 國中: [838, 762], 高中: [914, 762], 成年: [914, 762] }
 };
 
-export const dataRulesVersion = 4;
+export const dataRulesVersion = 5;
 
 export function normalizeSpecification(family, size) {
 	return family === "鉛球" && size === 2730 ? 2720 : size;
@@ -89,9 +89,13 @@ export function normalizeEvent(source) {
 	return { family, specification, unit };
 }
 
+const cleanGroup = group => group.normalize("NFKC").replace(/\s/g, "").replace(/組$/, "");
+const groupCategory = group => group.replace(/全能|三項|混合接力|混合/g, "");
+const ageGroupPattern = /^U(\d+)(?:選拔)?(?:[男女](?:生|子)?)?(?:選拔)?$/i;
+
 export function normalizeGroup(group, gender) {
-	const raw = group.normalize("NFKC").replace(/\s/g, "").replace(/組$/, "");
-	const category = raw.replace(/全能|三項|混合接力|混合/g, "");
+	const raw = cleanGroup(group);
+	const category = groupCategory(raw);
 	const sex = gender === "M" ? "男子" : gender === "F" ? "女子" : gender === "X" ? "混合" : "";
 	if (/國小|小學|[男女]童|^小[男女]|^[男女]生[甲乙]?$/.test(category)) return `國小${sex}`;
 	if (/國中|初中|^國[男女]/.test(category)) return `國中${sex}`;
@@ -100,8 +104,13 @@ export function normalizeGroup(group, gender) {
 	const college = category.match(/^(?:大專|大學)(?:[男女](?:生|子)?)?([甲乙])?$/);
 	const singleSex = gender === "M" || gender === "F";
 	if (college) return singleSex ? `${college[1] === "甲" ? "公開" : "一般"}${sex}` : `大專${sex}${college[1] || ""}`;
-	const ageGroup = category.match(/^U(\d+)(?:選拔)?(?:[男女](?:生|子)?)?(?:選拔)?$/i);
-	if (ageGroup) return singleSex && /^(?:19|20)$/.test(ageGroup[1]) ? `公開${sex}` : `U${ageGroup[1]}${sex}`;
+	const ageGroup = category.match(ageGroupPattern);
+	if (ageGroup) {
+		const [, limit] = ageGroup;
+		if (/^1[345]$/.test(limit)) return `國中${sex}`;
+		if (/^1[678]$/.test(limit)) return `高中${sex}`;
+		return singleSex && /^(?:19|20)$/.test(limit) ? `公開${sex}` : `U${limit}${sex}`;
+	}
 	const open = category.match(/^(公開|一般)?[男女](?:生|子)?$/);
 	if (open) return `${open[1] || (singleSex ? "公開" : "")}${sex}`;
 	return raw;
@@ -110,7 +119,8 @@ export function normalizeGroup(group, gender) {
 export function inferSpecification(family, group, gender, age) {
 	const standards = weights[family] || hurdles[family];
 	if (!standards || !["M", "F"].includes(gender) || /長青|壯年|樂齡|Masters/i.test(group)) return null;
-	const category = normalizeGroup(group, gender).match(/^(國小|國中|高中|成年)/)?.[0];
+	// Statistical aliases for U-groups do not identify the equipment used at the meet.
+	const category = ageGroupPattern.test(groupCategory(cleanGroup(group))) ? undefined : normalizeGroup(group, gender).match(/^(國小|國中|高中|成年)/)?.[0];
 	const college = /^(?:大專|大學)/.test(group.normalize("NFKC").trim());
 	const level = college ? "成年" : category || (age >= 5 && age <= 12 ? "國小" : age >= 13 && age <= 15 ? "國中" : age >= 16 && age <= 18 ? "高中" : age >= 19 ? "成年" : null);
 	return standards[level]?.[gender === "M" ? 0 : 1] ?? null;

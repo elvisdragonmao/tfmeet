@@ -56,6 +56,8 @@ test("school, sex, and age select the requested equipment standards", () => {
 	assert.equal(inferSpecification("鐵餅", "公開女子", "F", null), null);
 	assert.equal(inferSpecification("鉛球", "大專男乙", "M", null), 7260);
 	assert.equal(inferSpecification("110M跨欄", "亞青少男選拔", "M", null), 991);
+	assert.equal(inferSpecification("鉛球", "U13男子", "M", 12), 2720);
+	assert.equal(inferSpecification("鉛球", "U16女子", "F", null), null);
 });
 
 test("college, open and youth group aliases normalize for both genders", () => {
@@ -66,8 +68,12 @@ test("college, open and youth group aliases normalize for both genders", () => {
 		for (const raw of [`一般${sex}生`, `大專${sex}子`, `大專${sex}乙`]) assert.equal(normalizeGroup(raw, gender), `一般${sex}子`);
 		for (const raw of [`公開${sex}子`, `大專${sex}甲`, `${sex}子`, `U19 ${sex}子`, `Ｕ２０ ${sex}生`, `U20選拔${sex}子`]) assert.equal(normalizeGroup(raw, gender), `公開${sex}子`);
 		for (const raw of [`台日${sex}青`, `臺日青${sex}`, `亞青少${sex}`, `亞青少${sex}選拔`]) assert.equal(normalizeGroup(raw, gender), `高中${sex}子`);
-		assert.equal(normalizeGroup(`U18${sex}子`, gender), `U18${sex}子`);
+		for (const limit of [13, 14, 15]) assert.equal(normalizeGroup(`U${limit} ${sex}生組`, gender), `國中${sex}子`);
+		for (const limit of [16, 17, 18]) assert.equal(normalizeGroup(`U${limit}${sex}子`, gender), `高中${sex}子`);
+		assert.equal(normalizeGroup(`U12${sex}子`, gender), `U12${sex}子`);
 		assert.equal(normalizeGroup(`成年${sex}子`, gender), `成年${sex}子`);
 	}
 	assert.equal(normalizeGroup("大專乙混合", "X"), "大專混合乙");
+	assert.equal(normalizeGroup("U15混合", "X"), "國中混合");
+	assert.equal(normalizeGroup("Ｕ１８混合組", "X"), "高中混合");
 });
