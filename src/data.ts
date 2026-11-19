@@ -1,3 +1,4 @@
+import type { PredictionArtifact } from "./prediction.mjs";
 import type { Athlete, EventData, Manifest, Result } from "./types";
 let version = "";
 const cache = new Map<string, Promise<unknown>>();
@@ -35,4 +36,18 @@ export const loadAthletes = () => fetchData<Athlete[]>("athletes.json");
 export async function loadAthlete(id: string) {
 	const shard = await fetchData<Record<string, Result[]>>(`athletes/${id.slice(0, 2)}.json`);
 	return shard[id] || [];
+}
+
+let predictionModel: Promise<PredictionArtifact> | undefined;
+export function loadPredictionModel() {
+	predictionModel ??= fetch(`${import.meta.env.BASE_URL}prediction-model.json`, { cache: "no-cache" })
+		.then(response => {
+			if (!response.ok) throw new Error("無法載入預測模型。");
+			return response.json();
+		})
+		.catch(error => {
+			predictionModel = undefined;
+			throw error;
+		});
+	return predictionModel;
 }

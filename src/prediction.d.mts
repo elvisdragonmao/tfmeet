@@ -50,3 +50,7 @@ export interface PredictionResult {
 }
 
 export function predictPerformance(artifact: unknown, input: PredictionRequest): PredictionResult | { status: "unavailable"; reason: string; detail: string; modelVersion: string | null };
+export interface PredictionArtifact {
+	modelVersion: string;
+	dataset: { dataRulesVersion: number };
+}

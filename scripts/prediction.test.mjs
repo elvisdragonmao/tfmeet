@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { calibratedCellKey, predictFormula, predictPerformance } from "../src/prediction.mjs";
+import { athletePredictionSeasons } from "../src/prediction-history.mjs";
 import { cleanEvent, longitudinalPairs, weightPairs } from "./prediction-data.mjs";
 import { calibratedRadius, splitOf, splitPairs } from "./prediction-fit.mjs";
 
@@ -88,6 +89,40 @@ test("cleaning keeps explicit specifications and removes invalid, duplicate, and
 		[
 			[15, 5000],
 			[null, 5000]
+		]
+	);
+});
+
+test("athlete forecasts derive separate seasonal baselines from the chosen candidate only", () => {
+	const athlete = { id: "one", gender: "M", basis: "name-gender-birth-year" };
+	const valid = {
+		athleteId: "one",
+		event: "鉛球",
+		gender: "M",
+		meetId: "m",
+		item: "1",
+		bib: "1",
+		date: "2024-03-19",
+		year: 2024,
+		birthYear: 2009,
+		age: 15,
+		kind: "individual",
+		value: 12,
+		performance: "12",
+		specification: 5000
+	};
+	const rows = [
+		valid,
+		{ ...valid, date: "2024-04-19", value: 14, performance: "14" },
+		{ ...valid, specification: 6000, item: "2", value: 10, performance: "10" },
+		{ ...valid, athleteId: "different", item: "3", value: 16, performance: "16" },
+		{ ...valid, date: "2024-06-19", specificationInferred: true, value: 16, performance: "16" }
+	];
+	assert.deepEqual(
+		athletePredictionSeasons(athlete, "鉛球", "m", rows).map(({ year, age, mark, weightKg, meetDays }) => [year, age, mark, weightKg, meetDays]),
+		[
+			[2024, 15, 13, 5, 2],
+			[2024, 15, 10, 6, 1]
 		]
 	);
 });

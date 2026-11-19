@@ -5,6 +5,7 @@ import { bestPerAthlete, canReviewAthletesTogether, formatResult, groupStats, un
 import type { Athlete, Manifest, Result } from "../types";
 import { Empty, ErrorNotice, genderName, Loading, number, ResultsTable, Stat, unitName } from "./Shared";
 const Chart = lazy(() => import("./Chart"));
+const AthleteForecast = lazy(() => import("./AthleteForecast"));
 const identityNotes: Record<string, string> = {
 	"verified-override": "已依公開資料核對身分與姓名。",
 	"verified-source-alias": "同一來源成績列有中英文姓名，並以出生年及單位核對後合併。",
@@ -212,6 +213,9 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 								</button>
 							</div>
 						</div>
+						<Suspense fallback={<Loading label="載入成績預測…" />}>
+							<AthleteForecast key={`${athlete.id}:${currentEvent}`} athlete={athlete} eventLabel={currentEvent} event={info} records={records} dataRulesVersion={manifest.dataRulesVersion} />
+						</Suspense>
 						{filtered[0]?.kind === "combined" ? (
 							<div className="context-note">全能總分依組別分開顯示，不同組別可能使用不同分項與計分方式。</div>
 						) : filtered[0]?.kind === "combined-component" ? (

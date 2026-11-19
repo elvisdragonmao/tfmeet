@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
 import { normalizeEvent } from "../src/events.mjs";
 import { predictPerformance } from "../src/prediction.mjs";
-import { annualHistory, cleanEvent, snapshotRoot, summarizeDates } from "./prediction-data.mjs";
+import { athletePredictionSeasons } from "../src/prediction-history.mjs";
+import { snapshotRoot } from "./prediction-data.mjs";
 
 const argument = process.argv[2];
 if (argument === "--help") {
@@ -24,17 +25,8 @@ if (initial.status === "ok" && initial.model === "personal" && input.history ===
 	const athlete = (await readGzip("athletes.json.gz")).find(row => row.id === input.athleteId);
 	if (athlete) {
 		const shard = await readGzip(`athletes/${input.athleteId.slice(0, 2)}.json.gz`);
-		const rows = (shard[input.athleteId] || []).filter(row => row.event === event && row.gender === input.gender && row.year < input.currentYear);
-		const { records } = cleanEvent({ name: event, unit: initial.unit, records: rows }, new Map([[input.athleteId, athlete]]));
-		input.history = annualHistory(summarizeDates(records), false, initial.unit === "s").map(row => ({
-			athleteId: input.athleteId,
-			event,
-			gender: input.gender,
-			age: row.age,
-			year: row.year,
-			mark: row.value,
-			...(/跨欄|障礙/.test(event) ? { specificationMm: row.mass } : { weightKg: row.mass === null ? undefined : row.mass / 1000 })
-		}));
+		const rows = (shard[input.athleteId] || []).filter(row => row.year < input.currentYear);
+		input.history = athletePredictionSeasons(athlete, event, initial.unit, rows);
 	}
 }
 console.log(JSON.stringify(input?.history === undefined ? initial : predictPerformance(artifact, input), null, 2));

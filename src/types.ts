@@ -56,6 +56,7 @@ export interface Meet {
 	fetchedAt: string;
 }
 export interface Manifest {
+	dataRulesVersion?: number;
 	restricted?: number;
 	schemaVersion: number;
 	updatedAt: string;
