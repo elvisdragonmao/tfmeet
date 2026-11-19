@@ -1,1 +1,3 @@
 pnpm-lock.yaml
+public/prediction-model.json
+reports/prediction-*
