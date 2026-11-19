@@ -8,11 +8,6 @@ export const maxForecastHorizon = 3;
 export const ageBand = age => ageBandStarts.findLast(start => start <= age);
 export const calibratedCellKey = (mode, event, gender, from, to, age, horizon) => [mode, event, gender, from ?? "", to ?? "", ageBand(age), horizon].join("|");
 
-export function futureSeasonHorizons(baseYear, currentYear) {
-	if (baseYear > currentYear) return [];
-	return Array.from({ length: maxForecastHorizon }, (_, i) => i + 1).filter(horizon => baseYear + horizon > currentYear);
-}
-
 export function curveValue(curve, age) {
 	const { knots, levels } = curve;
 	if (age < knots[0] || age > knots.at(-1)) return NaN;

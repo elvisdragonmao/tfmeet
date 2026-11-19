@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { calibratedCellKey, futureSeasonHorizons, predictFormula, predictPerformance } from "../src/prediction.mjs";
-import { athletePredictionSeasons } from "../src/prediction-history.mjs";
+import { calibratedCellKey, predictFormula, predictPerformance } from "../src/prediction.mjs";
+import { athletePredictionSeasons, missingSeasonTargets } from "../src/prediction-history.mjs";
 import { cleanEvent, longitudinalPairs, weightPairs } from "./prediction-data.mjs";
 import { calibratedRadius, splitOf, splitPairs } from "./prediction-fit.mjs";
 
@@ -208,10 +208,21 @@ test("individual adjustment consumes matching past seasons only", () => {
 	assert.notEqual(revised.estimate, baseline.estimate);
 	assert.deepEqual(attemptedLeak, revised);
 });
-test("future forecast horizons already elapsed are removed without extending the model's range", () => {
-	assert.deepEqual(futureSeasonHorizons(2026, 2026), [1, 2, 3]);
-	assert.deepEqual(futureSeasonHorizons(2025, 2026), [2, 3]);
-	assert.deepEqual(futureSeasonHorizons(2024, 2026), [3]);
-	assert.deepEqual(futureSeasonHorizons(2023, 2026), []);
-	assert.deepEqual(futureSeasonHorizons(2027, 2026), []);
+test("gap and current-season estimates use the nearest prior season within the model's range", () => {
+	const seasons = [{ year: 2025 }, { year: 2022 }, { year: 2020 }];
+	const getTargets = (years, anchors) => missingSeasonTargets(years, anchors, 2026).map(({ year, precedingYear, source }) => [year, precedingYear, source.year]);
+	assert.deepEqual(getTargets([2020, 2022, 2025], seasons), [
+		[2021, 2020, 2020],
+		[2023, 2022, 2022],
+		[2024, 2022, 2022],
+		[2026, 2025, 2025],
+		[2027, 2025, 2025],
+		[2028, 2025, 2025]
+	]);
+	assert.deepEqual(getTargets([2024, 2025, 2026], [{ year: 2024 }]), [[2027, 2026, 2024]]);
+	assert.deepEqual(getTargets([2022, 2026], [{ year: 2022 }, { year: 2027 }]), [
+		[2023, 2022, 2022],
+		[2024, 2022, 2022],
+		[2025, 2022, 2022]
+	]);
 });

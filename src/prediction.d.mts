@@ -55,4 +55,3 @@ export interface PredictionArtifact {
 	dataset: { dataRulesVersion: number };
 }
 export const maxForecastHorizon: number;
-export function futureSeasonHorizons(baseYear: number, currentYear: number): number[];

@@ -7,3 +7,4 @@ export interface AthletePredictionSeason extends PerformanceHistory {
 }
 
 export function athletePredictionSeasons(athlete: Athlete, event: string, unit: string | undefined, rows: Result[]): AthletePredictionSeason[];
+export function missingSeasonTargets(observedYears: number[], seasons: AthletePredictionSeason[], currentYear: number): { year: number; precedingYear: number; source: AthletePredictionSeason }[];

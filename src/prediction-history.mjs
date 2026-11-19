@@ -1,4 +1,5 @@
 import { quantile, uniqueStarts } from "./analysis.mjs";
+import { maxForecastHorizon } from "./prediction.mjs";
 
 export const throwingEvents = new Set(["鉛球", "鐵餅", "標槍"]);
 const needsSpecification = event => throwingEvents.has(event) || /跨欄|障礙|鏈球/.test(event);
@@ -136,4 +137,23 @@ export function athletePredictionSeasons(athlete, event, unit, rows) {
 			...(/跨欄|障礙/.test(event) ? { specificationMm: row.mass } : row.mass !== null ? { weightKg: row.mass / 1000 } : {})
 		}))
 		.sort((a, b) => b.year - a.year || b.meetDays - a.meetDays || (a.weightKg ?? a.specificationMm ?? 0) - (b.weightKg ?? b.specificationMm ?? 0));
+}
+
+export function missingSeasonTargets(observedYears, seasons, currentYear) {
+	const anchors = seasons.filter(season => season.year <= currentYear).sort((a, b) => b.year - a.year);
+	if (!anchors.length) return [];
+	const observed = new Set([...observedYears.filter(year => year <= currentYear), ...anchors.map(season => season.year)]);
+	const first = Math.min(...observed);
+	const last = Math.max(...observed, anchors[0].year + maxForecastHorizon);
+	const targets = [];
+	let precedingYear = first;
+	for (let year = first + 1; year <= last; year++) {
+		if (observed.has(year)) {
+			precedingYear = year;
+			continue;
+		}
+		const source = anchors.find(season => season.year < year && year - season.year <= maxForecastHorizon);
+		if (source) targets.push({ year, precedingYear, source });
+	}
+	return targets;
 }
