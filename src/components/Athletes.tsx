@@ -1,10 +1,19 @@
 import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { MagnifyingGlassIcon, ArrowRightIcon, CheckIcon } from "@phosphor-icons/react";
 import { loadAthletes, loadAthlete } from "../data";
-import { bestPerAthlete, formatResult, groupStats, uniqueStarts } from "../analysis.mjs";
+import { bestPerAthlete, canReviewAthletesTogether, formatResult, groupStats, uniqueStarts } from "../analysis.mjs";
 import type { Athlete, Manifest, Result } from "../types";
 import { Empty, ErrorNotice, genderName, Loading, number, ResultsTable, Stat, unitName } from "./Shared";
 const Chart = lazy(() => import("./Chart"));
+const identityNotes: Record<string, string> = {
+	"verified-override": "已依公開資料核對身分與姓名。",
+	"verified-source-alias": "同一來源成績列有中英文姓名，並以出生年及單位核對後合併。",
+	"verified-separation": "公開資料已確認為不同選手，成績分開計算。",
+	"distinct-start-registrations": "同名選手在同場次有不同參賽編號和成績，已按報名紀錄拆開。",
+	"name-gender-birth-team": "同名、同出生年在同一賽會有不同編號與單位，已依單位拆分。",
+	"name-gender-birth-year": "以同名、同性別、同出生年連結，仍可核對學校與賽事。",
+	"name-gender-team": "以同名、同性別、同一單位連結；轉學可能分成多筆。"
+};
 export default function Athletes({ manifest, selectedId, onSelect }: { manifest: Manifest; selectedId: string; onSelect: (id: string) => void }) {
 	const [index, setIndex] = useState<Athlete[] | null>(null);
 	const [query, setQuery] = useState("");
@@ -55,7 +64,8 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 		};
 	}, [selected]);
 	const athlete = index?.find(a => a.id === selected[0]);
-	const candidates = useMemo(() => (index && athlete ? index.filter(a => a.name === athlete.name) : []), [index, athlete]);
+	const candidates = useMemo(() => (index && athlete ? index.filter(a => canReviewAthletesTogether(athlete, a)) : []), [index, athlete]);
+	const selectedCandidates = candidates.filter(a => selected.includes(a.id));
 	const found = useMemo(
 		() => index?.filter(a => !search || `${a.name} ${(a.aliases || []).join(" ")} ${a.teams.join(" ")} ${a.birthYear || ""}`.toLowerCase().includes(search.toLowerCase())) || [],
 		[index, search]
@@ -153,20 +163,12 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 								</div>
 								<span className="badge badge-ghost">候選身分</span>
 							</div>
-							<div className="identity-note">
-								{athlete.basis === "verified-override"
-									? "已核對公開來源中的中英文姓名與出生年。"
-									: athlete.basis === "name-gender-birth-team"
-										? "同名、同出生年在同場賽事出現不同編號與單位，已依單位拆分，請核對後再合併檢視。"
-										: athlete.basis === "name-gender-birth-year"
-											? "以同名、同性別、同出生年連結，仍需核對學校與賽事。"
-											: "以同名、同性別、同學校連結；轉學可能分成多個候選身分。"}
-							</div>
+							<div className="identity-note">{identityNotes[athlete.basis]}</div>
 							{athlete.evidence?.length ? (
 								<div className="identity-evidence">
 									{athlete.evidence.map((url, i) => (
 										<a key={url} href={url} target="_blank" rel="noreferrer">
-											{i === 0 ? "國際田總檔案" : "田協原始紀錄"} ↗
+											{url.includes("worldathletics.org") ? "國際田總檔案" : url.includes("athletics.org.tw") ? "田協原始紀錄" : `來源 ${i + 1}`} ↗
 										</a>
 									))}
 								</div>
@@ -181,7 +183,7 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 												type="checkbox"
 												className="checkbox checkbox-sm"
 												checked={selected.includes(a.id)}
-												disabled={selected.length === 1 && selected.includes(a.id)}
+												disabled={(selected.length === 1 && selected.includes(a.id)) || (!selected.includes(a.id) && selectedCandidates.some(candidate => !canReviewAthletesTogether(candidate, a)))}
 												onChange={e => setSelected(e.target.checked ? [...selected, a.id] : selected.filter(id => id !== a.id))}
 											/>
 											<span>

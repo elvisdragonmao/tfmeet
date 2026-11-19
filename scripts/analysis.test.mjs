@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bestPerAthlete, comparePool, formatResult, groupStats, parseInput, quantile, standing, threshold, uniqueStarts } from "../src/analysis.mjs";
-import { identity, registerIdentity, ambiguousIdentities } from "./identity.mjs";
+import { bestPerAthlete, canReviewAthletesTogether, comparePool, formatResult, groupStats, parseInput, quantile, standing, threshold, uniqueStarts } from "../src/analysis.mjs";
+import { identity, registerIdentity, ambiguousIdentities, registerSourceAlias } from "./identity.mjs";
 const r = (id, value, extra = {}) => ({ athleteId: id, name: id, gender: "M", team: "測試國中", kind: "individual", value, year: 2023, age: 14, group: "國中男子", wind: 1, round: "預賽", ...extra });
 test("one athlete carries one vote regardless of starts", () => {
 	const pool = [r("a", 12), r("a", 11), r("b", 13)];
@@ -72,6 +72,52 @@ test("same-meet conflicting bibs and teams split same-name same-year candidates"
 	assert.equal(conflicts.size, 1);
 	assert.notEqual(identity(a, conflicts).id, identity(b, conflicts).id);
 	assert.equal(identity(a, conflicts).basis, "name-gender-birth-team");
+});
+
+test("separate scored entries in the same heat split homonyms even at the same school", () => {
+	const registrations = new Map();
+	const first = r("王小明", 12, { meetId: "meet", item: "201", heat: "1", birthYear: 2008, bib: "001" });
+	const repeated = { ...first, bib: "1" };
+	const second = { ...first, value: 12.8, bib: "2" };
+	[first, repeated, { ...first, bib: "3" }].forEach(row => registerIdentity(registrations, row));
+	assert.equal(ambiguousIdentities(registrations).size, 0);
+	registerIdentity(registrations, second);
+	const conflicts = ambiguousIdentities(registrations);
+	const a = identity(first, conflicts);
+	const b = identity(second, conflicts);
+	assert.equal(a.id, identity(repeated, conflicts).id);
+	assert.notEqual(a.id, b.id);
+	assert.equal(a.basis, "distinct-start-registrations");
+	assert.equal(canReviewAthletesTogether(a, b), false);
+});
+
+test("source names merge within the same gender, birth year, and school only", () => {
+	const sourceAliases = new Map();
+	const chinese = r("林小安", 12, { birthYear: 2008, fields: { "選 手": "林小安 2008 HSIAO-AN LIN" }, source: "https://example.test/results" });
+	const english = { ...chinese, name: "Hsiao-An Lin" };
+	registerSourceAlias(sourceAliases, chinese);
+	assert.equal(identity(english, null, sourceAliases).id, identity(chinese).id);
+	assert.equal(identity(english, null, sourceAliases).displayName, chinese.name);
+	assert.deepEqual(identity(english, null, sourceAliases).evidence, [chinese.source]);
+	assert.notEqual(identity({ ...english, team: "另一學校" }, null, sourceAliases).id, identity(chinese).id);
+	assert.notEqual(identity({ ...english, birthYear: 2007 }, null, sourceAliases).id, identity(chinese).id);
+	registerSourceAlias(sourceAliases, { ...chinese, name: "林曉安", fields: { "選 手": "林曉安 2008 HSIAO-AN LIN" } });
+	assert.equal(identity(english, null, sourceAliases).id, identity(english).id);
+});
+
+test("verified splits override a shared identity key and cannot be combined in the UI", () => {
+	const first = r("王小明", 12, { meetId: "meet", birthYear: 2008, bib: "10" });
+	const second = { ...first, bib: "20" };
+	const overrides = [
+		{ key: "first", displayName: first.name, match: row => row.meetId === "meet" && row.bib === "10", basis: "verified-separation" },
+		{ key: "second", displayName: second.name, match: row => row.meetId === "meet" && row.bib === "20", basis: "verified-separation" }
+	].map(rule => ({ ...rule, evidence: ["https://example.test/entrants"], reason: "The roster identifies separate athletes." }));
+	const profile = row => ({ ...row, ...identity(row, null, null, overrides) });
+	assert.notEqual(profile(first).id, profile(second).id);
+	assert.equal(canReviewAthletesTogether(profile(first), profile(second)), false);
+	const candidate = row => ({ ...row, ...identity(row) });
+	assert.equal(canReviewAthletesTogether(candidate(first), candidate({ ...first, birthYear: 2010 })), false);
+	assert.equal(canReviewAthletesTogether(candidate(first), candidate({ ...first, birthYear: null })), true);
 });
 test("field age thresholds and yearly best retain higher-is-better direction", () => {
 	const stats = groupStats([r("a", 6), r("a", 5.5), r("b", 7)], "age", false);

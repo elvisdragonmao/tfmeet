@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-// Add an exception only with a public evidence URL and an explanation.
-// Do not infer a birth year, grade, or school transition from a matching name alone.
+// Use the same key for verified aliases, or distinct keys with basis "verified-separation" for verified homonyms.
+// Match each exception using the source's identifying fields and include public evidence and a reason.
 export const identityOverrides = [
 	{
 		key: "林昱堂|M|2000",
@@ -11,31 +11,96 @@ export const identityOverrides = [
 			"The association's 2026 international long-jump results explicitly pair 林昱堂 with YU TANG LIN and birth year 2000; World Athletics corroborates the international name, event and birth date."
 	}
 ];
-export function identity(record, ambiguous = null) {
-	const override = identityOverrides.find(o => o.match(record));
-	if (override && (!override.evidence || !override.reason)) throw new Error("Identity overrides require evidence and reason");
+export function identity(record, ambiguous = null, sourceAliases = null, overrides = identityOverrides) {
+	const override = overrides.find(o => o.match(record));
+	if (override && (!override.evidence?.length || !override.reason)) throw new Error("Identity overrides require evidence and reason");
 	const base = baseIdentityKey(record);
-	const conflict = ambiguous?.has(base);
-	const key = override?.key || base + (conflict ? `|team:${record.team}` : "");
+	const conflict = ambiguous?.get(base);
+	const alias = override || conflict ? null : matchingSourceName(sourceAliases, record, ambiguous);
+	const key =
+		override?.key ||
+		alias?.key ||
+		base + (conflict === "registration" ? `|registration:${record.meetId}:${registrationNumber(record.bib)}` : conflict === "team" ? `|team:${record.team.normalize("NFKC").trim()}` : "");
 	return {
-		displayName: override?.displayName || record.name,
-		evidence: override?.evidence || [],
+		displayName: override?.displayName || alias?.name || record.name,
+		evidence: override?.evidence || (alias ? [alias.source] : []),
 		id: createHash("sha256").update(key).digest("hex").slice(0, 20),
-		basis: override ? "verified-override" : conflict ? "name-gender-birth-team" : record.birthYear ? "name-gender-birth-year" : "name-gender-team"
+		basis: override
+			? override.basis || "verified-override"
+			: alias
+				? "verified-source-alias"
+				: conflict === "registration"
+					? "distinct-start-registrations"
+					: conflict === "team"
+						? "name-gender-birth-team"
+						: record.birthYear
+							? "name-gender-birth-year"
+							: "name-gender-team"
 	};
 }
 export function baseIdentityKey(record) {
 	return [record.name.normalize("NFKC").trim(), record.gender, record.birthYear || `team:${record.team.normalize("NFKC").trim()}`].join("|");
 }
+const registrationNumber = bib => (bib || "").trim().replace(/^0+(?=\d)/, "");
 export function registerIdentity(registrations, r) {
-	if (r.kind !== "individual" || !r.birthYear || !r.bib) return;
+	if (r.kind !== "individual" || !registrationNumber(r.bib) || r.nameProvided === false) return;
 	const key = baseIdentityKey(r),
 		registrationKey = `${key}|${r.meetId}`;
-	if (!registrations.has(registrationKey)) registrations.set(registrationKey, { key, bibs: new Set(), teams: new Set() });
+	if (!registrations.has(registrationKey)) registrations.set(registrationKey, { key, bibs: new Set(), teams: new Set(), starts: new Map(), distinctStart: false });
 	const entry = registrations.get(registrationKey);
-	entry.bibs.add(r.bib);
-	entry.teams.add(r.team);
+	const bib = registrationNumber(r.bib);
+	const team = r.team.normalize("NFKC").trim();
+	entry.bibs.add(bib);
+	if (team) entry.teams.add(team);
+	if (!r.item || r.value === null) return;
+	const start = JSON.stringify([r.item, r.date, r.heat]);
+	const previous = entry.starts.get(start);
+	if (previous && previous.bib !== bib && (previous.value !== r.value || (previous.rank && r.rank && previous.rank !== r.rank))) entry.distinctStart = true;
+	if (!previous) entry.starts.set(start, { bib, value: r.value, rank: r.rank });
 }
 export function ambiguousIdentities(registrations) {
-	return new Set([...registrations.values()].filter(r => r.bibs.size > 1 && r.teams.size > 1).map(r => r.key));
+	const conflicts = new Map();
+	for (const entry of registrations.values()) {
+		if (entry.distinctStart) conflicts.set(entry.key, "registration");
+		else if (entry.bibs.size > 1 && entry.teams.size > 1 && !conflicts.has(entry.key)) conflicts.set(entry.key, "team");
+	}
+	return conflicts;
+}
+
+const romanizedName = /^[\p{Script=Latin}][\p{Script=Latin}\p{Mark} .'’-]*$/u;
+const aliasKey = (name, r) =>
+	[
+		name
+			.normalize("NFKD")
+			.toUpperCase()
+			.replace(/[^A-Z]/g, ""),
+		r.gender,
+		r.birthYear,
+		r.team.normalize("NFKC").trim()
+	].join("|");
+
+export function sourceNameAlias(record) {
+	if (!record.birthYear || !["M", "F"].includes(record.gender) || !/^\p{Script=Han}+$/u.test(record.name)) return null;
+	const cell = Object.entries(record.fields || {}).find(([header]) => /^(?:選手|姓名|ATHLETE|NAME)$/i.test(header.replace(/\s/g, "")))?.[1];
+	if (!cell?.startsWith(record.name)) return null;
+	const suffix = cell.slice(record.name.length).trim();
+	const birthYear = String(record.birthYear);
+	if (!suffix.startsWith(birthYear)) return null;
+	const alias = suffix.slice(birthYear.length).trim();
+	return romanizedName.test(alias) && alias.replace(/[^\p{Script=Latin}]/gu, "").length >= 4 ? alias : null;
+}
+
+export function registerSourceAlias(aliases, record) {
+	const alias = sourceNameAlias(record);
+	if (!alias || !record.source || !record.team.trim()) return;
+	const key = aliasKey(alias, record);
+	const existing = aliases.get(key);
+	if (existing === undefined) aliases.set(key, { name: record.name, key: baseIdentityKey(record), source: record.source });
+	else if (existing?.key !== baseIdentityKey(record)) aliases.set(key, null);
+}
+
+function matchingSourceName(aliases, record, ambiguous) {
+	if (!aliases || !record.birthYear || !romanizedName.test(record.name)) return null;
+	const match = aliases.get(aliasKey(record.name, record));
+	return match && !ambiguous?.has(match.key) ? match : null;
 }

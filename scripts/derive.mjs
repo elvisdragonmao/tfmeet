@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { createGunzip, createGzip, gunzipSync, gzipSync } from "node:zlib";
 import { once } from "node:events";
 import { dataRulesVersion, normalizeEvent, normalizeGroup, inferSpecification } from "../src/events.mjs";
-import { identity, registerIdentity, ambiguousIdentities } from "./identity.mjs";
+import { identity, registerIdentity, ambiguousIdentities, registerSourceAlias, sourceNameAlias } from "./identity.mjs";
 const root = new URL("../public/data/", import.meta.url);
 await mkdir(new URL("events/", root), { recursive: true });
 await mkdir(new URL("athletes/", root), { recursive: true });
@@ -20,11 +20,15 @@ try {
 	if (progress.meets.length > manifest.meets.length) manifest = { ...manifest, updatedAt: progress.updatedAt, meets: progress.meets };
 } catch {}
 const registrations = new Map();
+const sourceAliases = new Map();
 const meetPath = id => new URL(`meets/${id}.json.gz`, root);
 const readMeet = async id => JSON.parse(gunzipSync(await readFile(meetPath(id))));
 for (const meet of manifest.meets) {
 	const d = await readMeet(meet.id);
-	for (const r of d.records) registerIdentity(registrations, r);
+	for (const r of d.records) {
+		registerIdentity(registrations, r);
+		registerSourceAlias(sourceAliases, r);
+	}
 }
 const ambiguous = ambiguousIdentities(registrations);
 registrations.clear();
@@ -48,7 +52,7 @@ for (const meet of manifest.meets) {
 	meet.errors = d.errors;
 	meet.warnings = d.warnings || [];
 	for (const r of d.records) {
-		const ident = identity(r, ambiguous);
+		const ident = identity(r, ambiguous, sourceAliases);
 		if (!eventLabels.has(r.event)) eventLabels.set(r.event, normalizeEvent(r.event));
 		const { family: event, unit, specification: stated } = eventLabels.get(r.event);
 		const groupKey = r.group + "|" + r.gender;
@@ -100,6 +104,12 @@ for (const meet of manifest.meets) {
 			});
 		const a = athletes.get(ident.id);
 		a.aliases.add(r.name);
+		const alias = sourceNameAlias(r);
+		if (alias) a.aliases.add(alias);
+		if (ident.basis === "verified-source-alias" && !a.evidence.length) {
+			a.basis = ident.basis;
+			a.evidence = ident.evidence;
+		}
 		a.teams.add(r.team);
 		a.events.add(event);
 		a.years.add(r.year);

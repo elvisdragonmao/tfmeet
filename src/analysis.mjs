@@ -34,6 +34,17 @@ export function uniqueStarts(records) {
 		return true;
 	});
 }
+const separatedAthleteBases = new Set(["distinct-start-registrations", "verified-separation"]);
+export function canReviewAthletesTogether(first, second) {
+	if (first.id === second.id) return true;
+	return (
+		first.name === second.name &&
+		first.gender === second.gender &&
+		(!first.birthYear || !second.birthYear || first.birthYear === second.birthYear) &&
+		!separatedAthleteBases.has(first.basis) &&
+		!separatedAthleteBases.has(second.basis)
+	);
+}
 export function comparePool(records, filters) {
 	const { gender, group, from, to, age, wind, round, team } = filters;
 	return uniqueStarts(

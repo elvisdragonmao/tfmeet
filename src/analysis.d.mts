@@ -1,4 +1,4 @@
-import type { Result, Filters } from "./types";
+import type { Athlete, Result, Filters } from "./types";
 export function quantile(sorted: number[], p: number): number | null;
 export function formatResult(value: number | null | undefined, unit?: string): string;
 export function bestPerAthlete(records: Result[], lower?: boolean): Result[];
@@ -13,3 +13,4 @@ export function groupStats(
 export function parseInput(text: string, unit?: string): number | null;
 
 export function uniqueStarts(records: Result[]): Result[];
+export function canReviewAthletesTogether(first: Athlete, second: Athlete): boolean;

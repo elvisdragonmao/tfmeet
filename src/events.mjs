@@ -32,7 +32,7 @@ const hurdles = {
 	"400M跨欄": { 國中: [838, 762], 高中: [914, 762], 成年: [914, 762] }
 };
 
-export const dataRulesVersion = 1;
+export const dataRulesVersion = 2;
 
 function parseSpecification(family, details) {
 	if (/跨欄|障礙/.test(family)) {
