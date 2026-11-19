@@ -15,6 +15,9 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"preinstall": "npx only-allow pnpm",
+		"prediction:audit": "node scripts/prediction-audit.mjs",
+		"prediction:fit": "node scripts/prediction-backtest.mjs",
+		"prediction:predict": "node scripts/predict.mjs",
 		"prepare": "sh -c 'if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then git config core.hooksPath .githooks; fi'",
 		"preview": "vite preview --host 127.0.0.1",
 		"test": "node --test scripts/*.test.mjs"

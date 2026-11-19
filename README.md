@@ -100,6 +100,26 @@ pnpm run data:package    # 產生 .cache/tfmeet-data.tar.gz，供 Release／buil
 
 `scripts/identity.mjs` 只接受附公開證據與理由的身分例外。例如林昱堂／YU TANG LIN 的例外，同時要求男性與出生年 2000，並附田協原始中英文成績與 World Athletics 檔案；不因姓名相似就補造出生年。
 
+## 成績預測
+
+預測模組用已保留的比賽資料離線擬合。下載或更新快照後可以按以下順序重做分析。
+
+```sh
+pnpm run data:derive
+pnpm run prediction:audit
+pnpm run prediction:fit
+pnpm test
+```
+
+`prediction:fit` 會先重產資料品質報告，再更新回測報告與 `public/prediction-model.json`。獨立程式可將模型 JSON 與請求物件傳入 `src/prediction.mjs` 的 `predictPerformance(artifact, input)`。命令列可用 `pnpm run prediction:predict input.json`，或從標準輸入傳入同一份 JSON。
+
+- `event` 為比賽項目，`gender` 為 `M` 或 `F`，`mark` 是目前代表成績，徑賽以秒、田賽以公尺輸入。年齡模型的代表成績是全年賽會日成績的中位數，重量模型使用相近時期的賽會日中位數。
+- `currentAge` 與 `targetAge` 用比賽年份減出生年，回應會附足歲可能範圍。純重量換算可省略 `targetAge`。投擲提供 `currentWeightKg` 與需要改變時的 `targetWeightKg`。跨欄或障礙的同規格年齡預測使用 `specificationMm`。
+- 可選填 `athleteId` 及 `history`。每筆歷史含 `event`、`gender`、`age`、`mark` 及適用的器材規格。若提供歷史 `year`，需同時提供請求的 `currentYear`。命令列可用本機選手 ID 加基準年讀取已清理的過往賽季；直接呼叫函式由呼叫端提供歷史。樣本較少時個人模型使用群體曲線。
+- 成功時回傳估計成績、預測區間、實測覆蓋率、回測誤差、模型版本與支援範圍。分組未通過回測或超出已驗證的用法時回傳 `status: "unavailable"` 及原因。
+
+[資料品質報告](reports/prediction-data.md) · [回測報告](reports/prediction-backtest.md) · [模型係數](public/prediction-model.json)
+
 ## 更新與部署
 
 `.github/workflows/deploy.yml` 使用 GitHub Actions 部署 GitHub Pages。推送 `main`、手動執行及每月排程都會執行檢查與 build。
