@@ -4,7 +4,7 @@ import { bestPerAthlete, formatResult, groupStats, parseInput, standing, quantil
 import type { EventData, Manifest, Result } from "../types";
 import { Loading, NoResults, number, ResultsTable, Stat, unitName } from "./Shared";
 const Chart = lazy(() => import("./Chart"));
-export default function Distribution({ rows, data, manifest, onAthlete }: { rows: Result[]; data: EventData; manifest: Manifest; onAthlete: (id: string) => void }) {
+export default function Distribution({ rows, data, eventLabel, manifest, onAthlete }: { rows: Result[]; data: EventData; eventLabel: string; manifest: Manifest; onAthlete: (id: string) => void }) {
 	const [score, setScore] = useState(new URLSearchParams(location.search).get("score") || "");
 	const [allAttempts, setAllAttempts] = useState(new URLSearchParams(location.search).get("attempts") === "all");
 	useEffect(() => {
@@ -93,7 +93,7 @@ export default function Distribution({ rows, data, manifest, onAthlete }: { rows
 						<div>
 							<h2>成績分布</h2>
 							<p>
-								{data.name} · {allAttempts ? "所有出賽" : "選手最佳成績"}
+								{eventLabel} · {allAttempts ? "所有出賽" : "選手最佳成績"}
 							</p>
 						</div>
 						<label className="check-label">
@@ -102,7 +102,7 @@ export default function Distribution({ rows, data, manifest, onAthlete }: { rows
 						</label>
 					</div>
 					<Suspense fallback={<Loading />}>
-						<Chart option={histogram} label={`${data.name}成績分布直方圖，${cohort.length}個樣本`} />
+						<Chart option={histogram} label={`${eventLabel}成績分布直方圖，${cohort.length}個樣本`} />
 					</Suspense>
 					<div className="chart-caption">
 						<span>

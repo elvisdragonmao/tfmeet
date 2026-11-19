@@ -5,11 +5,13 @@ import type { EventData, Filters, Manifest, Result } from "../types";
 import { comparePool } from "../analysis.mjs";
 import { Empty, ErrorNotice, Loading, number, unitName } from "./Shared";
 const Chart = lazy(() => import("./Chart"));
-export default function AgeAnalysis({ rows, data, manifest, filters }: { rows: Result[]; data: EventData; manifest: Manifest; filters: Filters }) {
+export default function AgeAnalysis({ rows, data, specification, manifest, filters }: { rows: Result[]; data: EventData; specification?: number; manifest: Manifest; filters: Filters }) {
 	const [compare, setCompare] = useState(false);
 	const [other, setOther] = useState<EventData | null>(null);
 	const [error, setError] = useState("");
-	const counterpart = manifest.events.find(e => e.name === data.name && e.gender !== data.gender && ["F", "M"].includes(e.gender));
+	const counterpart = manifest.events.find(
+		e => e.name === data.name && e.gender !== data.gender && ["F", "M"].includes(e.gender) && (specification === undefined || e.specifications?.some(s => s.size === specification && s.valid))
+	);
 	useEffect(() => {
 		let live = true;
 		setOther(null);
@@ -27,10 +29,11 @@ export default function AgeAnalysis({ rows, data, manifest, filters }: { rows: R
 		};
 	}, [compare, counterpart?.id]);
 	const groups = useMemo(() => groupStats(rows, "age", data.lowerIsBetter).filter(g => g.key >= 5 && g.key <= 100), [rows, data.lowerIsBetter]);
-	const otherGroups = useMemo(
-		() => (other ? groupStats(comparePool(other.records, { ...filters, gender: other.gender, group: "" }), "age", data.lowerIsBetter) : []),
-		[other, filters, data.lowerIsBetter]
-	);
+	const otherGroups = useMemo(() => {
+		if (!other || other.id !== counterpart?.id) return [];
+		const records = specification === undefined ? other.records : other.records.filter(r => r.specification === specification);
+		return groupStats(comparePool(records, { ...filters, gender: other.gender, group: "" }), "age", data.lowerIsBetter);
+	}, [other, counterpart?.id, specification, filters, data.lowerIsBetter]);
 	const ages = [...new Set([...groups, ...otherGroups].map(g => g.key))].sort((a, b) => a - b);
 	const chart = {
 		tooltip: { trigger: "axis", valueFormatter: (v: unknown) => formatResult(Number(v), data.unit) },

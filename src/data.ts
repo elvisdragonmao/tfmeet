@@ -27,7 +27,7 @@ export function fetchData<T>(path: string): Promise<T> {
 }
 export const loadManifest = () =>
 	fetchData<Manifest>("manifest.json").then(m => {
-		version = m.updatedAt;
+		version = m.derivedAt || m.updatedAt;
 		return m;
 	});
 export const loadEvent = (id: string) => fetchData<EventData>(`events/${id}.json`);

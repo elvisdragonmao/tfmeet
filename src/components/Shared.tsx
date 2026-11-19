@@ -1,6 +1,7 @@
 import { ArrowSquareOutIcon, DownloadSimpleIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { formatResult } from "../analysis.mjs";
+import { specificationLabel } from "../events.mjs";
 import type { EventData, Manifest, Result } from "../types";
 export const number = (n: number) => new Intl.NumberFormat("zh-TW").format(n);
 export const genderName = (s: string) => ({ M: "男子", F: "女子", X: "混合", U: "未註明" })[s] || s;
@@ -93,6 +94,12 @@ export function ResultsTable({ rows, data, manifest, onAthlete }: { rows: Result
 								<td>
 									{r.group}
 									<div className="table-secondary">{r.round}</div>
+									{r.specification !== undefined ? (
+										<div className="table-secondary">
+											{specificationLabel(r.event, r.specification)}
+											{r.specificationInferred ? "（推估）" : ""}
+										</div>
+									) : null}
 								</td>
 								<td className="numeric result-value">{r.performance || "—"}</td>
 								<td>{r.wind !== null ? `${r.wind > 0 ? "+" : ""}${r.wind.toFixed(1)}` : "—"}</td>
@@ -148,7 +155,10 @@ export function Methodology() {
 				<p>
 					當年年齡＝比賽西元年份－公開出生年，實際足歲可能少一歲。未提供出生年的紀錄不納入年齡曲線；沒有年級資料就不推算年級。不同年齡的曲線是不同參賽者的橫斷比較，不能解釋為個人的成長或因果效果。
 				</p>
-				<p>各器材重量與欄高分開比較。個人項目、接力、全能分項不混算。風速依該組或該次最佳成績記錄；選擇「已知風速 ≤ +2.0」會排除沒有風速的成績。原始手計時／電計時若未明載，無法保證一致。</p>
+				<p>
+					未選規格的項目包含各種欄高、器材重量及規格不明的成績。可選單一規格比較。來源未標明的規格依組別或當年年齡推估，並在成績列標示。個人項目、接力、全能分項不混算。選擇「已知風速 ≤
+					+2.0」會排除沒有風速的成績。
+				</p>
 				<p>相同姓名、性別、出生年歸為同一候選身分；沒有出生年時以姓名、性別、學校分組。這仍可能有同名誤合或轉學拆分，選手頁可核對與勾選候選身分。所有原始欄位與未完賽成績均保留於賽事 JSON。</p>
 			</div>
 		</details>

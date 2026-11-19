@@ -60,9 +60,9 @@ export default function Athletes({ manifest, selectedId, onSelect }: { manifest:
 		() => index?.filter(a => !search || `${a.name} ${(a.aliases || []).join(" ")} ${a.teams.join(" ")} ${a.birthYear || ""}`.toLowerCase().includes(search.toLowerCase())) || [],
 		[index, search]
 	);
-	const eventLabel = (r: Result) => (r.kind === "combined" ? `${r.event} · ${r.group}` : r.event);
+	const eventLabel = (r: Result) => (r.kind === "combined" ? `${r.event} · ${r.group}` : r.kind === "combined-component" ? `${r.event}（全能分項）` : r.event);
 	const available = [...new Set(records.filter(r => r.kind !== "relay").map(eventLabel))].sort();
-	const currentEvent = available.includes(event) ? event : available.includes("100公尺") ? "100公尺" : available[0];
+	const currentEvent = available.includes(event) ? event : available.includes("100M") ? "100M" : available[0];
 	const filtered = useMemo(
 		() => uniqueStarts(records.filter(r => eventLabel(r) === currentEvent && r.kind !== "relay")).sort((a, b) => (a.date || String(a.year)).localeCompare(b.date || String(b.year))),
 		[records, currentEvent]

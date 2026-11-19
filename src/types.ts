@@ -6,6 +6,8 @@ export interface Result {
 	date: string | null;
 	year: number;
 	event: string;
+	specification?: number;
+	specificationInferred?: boolean;
 	group: string;
 	round: string;
 	gender: string;
@@ -33,6 +35,7 @@ export interface EventInfo {
 	count: number;
 	valid: number;
 	years: number[];
+	specifications?: { size: number; count: number; valid: number }[];
 }
 export interface EventData extends Pick<EventInfo, "id" | "name" | "gender" | "unit" | "lowerIsBetter"> {
 	records: Result[];

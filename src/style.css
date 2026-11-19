@@ -407,6 +407,9 @@ main {
 	font-size: 12px;
 	white-space: nowrap;
 }
+.gender-field .segmented button {
+	flex: 1;
+}
 .segmented button.active {
 	background: #fff;
 	color: #315fdf;
